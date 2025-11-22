@@ -1,1 +1,7 @@
-Implementazione_seriale
+main
+*.o
+*.ncu-rep
+*.cfg 
+*.txt
+*.asc
+*.xml
