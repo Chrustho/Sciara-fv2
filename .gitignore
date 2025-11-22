@@ -1,0 +1,7 @@
+main
+*.o
+*.ncu-rep
+*.cfg 
+*.txt
+*.asc
+*.xml
