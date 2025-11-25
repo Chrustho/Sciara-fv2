@@ -1,12 +1,11 @@
-#pragma once 
+#pragma once
 
-#include "Sciara.h" 
+#include "Implementazione_seriale/vent.h"
 
-// TODO: definire delle struct anziché passare tutti questi dati alla GPU
 __global__ void emitLava_Global(
     int r, 
     int c, 
-    TVent *vents,          
+    TVent *vents,        
     int num_vents,        
     double elapsed_time, 
     double Pclock, 
@@ -35,10 +34,6 @@ __global__ void computeOutflows_Global(
     double _d
 );
 
-__global__ void computeOutflows_Tiled(
-    int r, int c, int *Xi, int *Xj, double *Sz, double *Sh, double *ST, double *Mf, 
-    double Pc, double _a, double _b, double _c, double _d
-);
 
 __global__ void massBalance_Global(
     int r, 
@@ -50,11 +45,6 @@ __global__ void massBalance_Global(
     double *ST, 
     double *ST_next, 
     double *Mf
-);
-
-// Versione Tiled (Shared Memory)
-__global__ void massBalance_Tiled(
-    int r, int c, int *Xi, int *Xj, double *Sh, double *Sh_next, double *ST, double *ST_next, double *Mf
 );
 
 __global__ void computeNewTemperatureAndSolidification_Global(

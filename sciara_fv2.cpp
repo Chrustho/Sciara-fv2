@@ -269,6 +269,8 @@ int main(int argc, char **argv)
   int max_steps = atoi(argv[MAX_STEPS_ID]);
   loadConfiguration(argv[INPUT_PATH_ID], sciara);
 
+  allocateSubstates(sciara);
+
   // Domain boundaries and neighborhood
   int i_start = 0, i_end = sciara->domain->rows; // [i_start,i_end[: kernels application range along the rows
   int j_start = 0, j_end = sciara->domain->cols; // [j_start,j_end[: kernels application range along the cols
