@@ -1,5 +1,5 @@
-#include "Sciara.h"
-#include "cal2DBuffer.h"
+#include "src/Sciara.h"
+#include "src/cal2DBuffer.h"
 #include <cuda_runtime.h>
 
 /*

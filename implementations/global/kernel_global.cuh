@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Implementazione_seriale/vent.h"
+#include "../../src/vent.h"
 
 __global__ void emitLava_Global(
     int r, 

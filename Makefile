@@ -7,7 +7,7 @@ ifndef CPPC
 endif
 
 NVCC=nvcc
-NVCODE = -gencode arch=compute_52, code="compute_52" -ftz=true
+NVCODE = -gencode arch=compute_52, code="compute_52" -ftz=true -I./src
 NVFLAGS = -O3 -std=c++14 $(NVCODE)
 
 

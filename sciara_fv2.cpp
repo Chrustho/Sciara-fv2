@@ -1,6 +1,6 @@
-#include "Sciara.h"
-#include "io.h"
-#include "util.hpp"
+#include "src/Sciara.h"
+#include "src/io.h"
+#include "src/util.hpp"
 
 // ----------------------------------------------------------------------------
 // I/O parameters used to index argv[]

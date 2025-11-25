@@ -1,5 +1,5 @@
-#include "Implementazione_seriale/vent.h"
-#include "Implementazione_seriale/Sciara.h"
+#include "../../src/vent.h"
+#include "../../src/Sciara.h"
 
 __global__ void emitLava_Global(
     int r, 
@@ -112,8 +112,32 @@ __global__ void computeOutflows_Global(
             eliminated[k] = true;
         }
     }
-    
-    
+    do
+  {
+    loop = false;
+    avg = h[0];
+    counter = 0;
+    for (int k = 0; k < MOORE_NEIGHBORS; k++)
+      if (!eliminated[k])
+      {
+        avg += H[k];
+        counter++;
+      }
+    if (counter != 0)
+      avg = avg / double(counter);
+    for (int k = 0; k < MOORE_NEIGHBORS; k++)
+      if (!eliminated[k] && avg <= H[k])
+      {
+        eliminated[k] = true;
+        loop = true;
+      }
+  } while (loop);
+
+  for (int k = 1; k < MOORE_NEIGHBORS; k++)
+    if (!eliminated[k] && h[0] > hc * cos(theta[k]))
+      BUF_SET(Mf, r, c, k - 1, i, j, Pr[k] * (avg - H[k]));
+    else
+      BUF_SET(Mf, r, c, k - 1, i, j, 0.0);
 
 }
 
