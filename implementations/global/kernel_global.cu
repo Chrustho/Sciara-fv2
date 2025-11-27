@@ -7,46 +7,81 @@ void emitLava(
     int j,
     Sciara *sciara) 
 {
-  for (int k = 0; k < sciara->simulation->vent.size(); k++)
-  {
-    if (i == sciara->simulation->vent[k].y() && j == sciara->simulation->vent[k].x())
+    // Parametri del dominio
+    int rows= sciara->domain->rows;
+    int cols= sciara->domain->cols;
+
+    // Parametri della simulazione
+    double pTvent= sciara->parameters->PTvent;
+    double elapsed_time= sciara->simulation->elapsed_time;
+    double pclock = sciara->parameters->Pclock;
+    unsigned int em_time= sciara->simulation->emission_time; 
+    double pac= sciara->parameters->Pac;
+    double total_em_lava= sciara->simulation->total_emitted_lava;
+
+    // Buffers
+    double *sh=sciara->substates->Sh;
+    double *sh_next= sciara->substates->Sh_next;
+    double *st_next= sciara->substates->ST_next;
+
+    int size= sciara->simulation->vent.size();
+
+    for (int k = 0; k < size; k++)
     {
-      double thickness_add = sciara->simulation->vent[k].thickness(sciara->simulation->elapsed_time, sciara->parameters->Pclock, sciara->simulation->emission_time, sciara->parameters->Pac);
+        TVent curr_vent= sciara->simulation->vent[k];
 
-      double current_Sh = GET(sciara->substates->Sh, sciara->domain->cols, i, j);
+        if (i == curr_vent.y() && j == curr_vent.x())
+    {
 
-      SET(sciara->substates->Sh_next, sciara->domain->cols, i, j, current_Sh + thickness_add);
-      
-      SET(sciara->substates->ST_next, sciara->domain->cols, i, j, sciara->parameters->PTvent);
+        double thickness_add = curr_vent.thickness(elapsed_time, pclock, em_time, pac);
 
-      sciara->simulation->total_emitted_lava += thickness_add;
+        double current_Sh = GET(sh, cols, i, j);
+
+        SET(sh_next, cols, i, j, current_Sh + thickness_add);
+
+        SET(st_next, cols, i, j, pTvent);
+
+        total_em_lava += thickness_add;
     }
-  }
+    }
 }
 
 __global__ void computeOutflows_Global(
-    int r,
-    int c,
-    const int *Xi, 
-    const int *Xj,
-    const double *Sz,
-    const double *Sh,
-    const double *ST,
-    double *Mf, 
-    double Pc,
-    double _a,
-    double _b,
-    double _c,
-    double _d)
+    Sciara *sciara)
 {
+    // Parametri del dominio
+    int rows= sciara->domain->rows;
+    int cols= sciara->domain->cols;
+
+    // Vicini
+    int *xi= sciara->X->Xi;
+    int *xj=sciara->X->Xj;
+
+    // Buffers
+    double *sh=sciara->substates->Sh;
+    double *st=sciara->substates->ST;
+    double *sz= sciara->substates->Sz;
+
+    // Parametri
+    double *mf=sciara->substates->Mf;
+    double pc=sciara->parameters->Pc;
+
+    // a, b, c, d
+    double _a= sciara->parameters->a;
+    double _b=sciara->parameters->b;
+    double _c=sciara->parameters->c;
+    double _d=sciara->parameters->d;
+
+    
+
     int j = blockIdx.x * blockDim.x + threadIdx.x;
     int i = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (i >= r || j >= c) return;
+    if (i >= rows || j >= cols) return;
 
-    int idx = i * c + j;
+    int idx = i * cols + j;
 
-    double h0 = Sh[idx];
+    double h0 = sh[idx];
     if (h0 <= 0.0) return;
 
     bool eliminated[MOORE_NEIGHBORS];
@@ -57,8 +92,8 @@ __global__ void computeOutflows_Global(
     double Pr[MOORE_NEIGHBORS]; 
     double w[MOORE_NEIGHBORS];
     
-    double sz0 = Sz[idx];
-    double T_val = ST[idx]; 
+    double sz0 = sz[idx];
+    double T_val = st[idx]; 
 
     double rr = pow(10.0, _a + _b * T_val);
     double hc = pow(10.0, _c + _d * T_val);
@@ -66,20 +101,20 @@ __global__ void computeOutflows_Global(
     for (int k = 0; k < MOORE_NEIGHBORS; k++)
     {
 
-        int ni = i + Xi[k];
-        int nj = j + Xj[k];
-        int idx_k = ni * c + nj;
-        if (idx_k < 0 || idx_k > r*c)
+        int ni = i + xi[k];
+        int nj = j + xj[k];
+        int idx_k = ni * cols + nj;
+        if (idx_k < 0 || idx_k > rows*cols)
         {
             break;
         }
         
 
-        double sz_k = Sz[idx_k];
+        double sz_k = sz[idx_k];
         
-        h[k] = Sh[idx_k]; 
+        h[k] = sh[idx_k]; 
         
-        w[k] = Pc;
+        w[k] = pc;
         Pr[k] = rr;
 
         if (k < VON_NEUMANN_NEIGHBORS)
@@ -143,61 +178,68 @@ __global__ void computeOutflows_Global(
     for (int k = 1; k < MOORE_NEIGHBORS; k++)
     {
         int outflow_idx = k - 1; 
-        int mf_idx = (outflow_idx * r * c) + idx;
+        int mf_idx = (outflow_idx * rows * cols) + idx;
 
         if (!eliminated[k] && h[0] > hc * cos(theta[k]))
         {
-            Mf[mf_idx] = Pr[k] * (avg - H[k]);
+            mf[mf_idx] = Pr[k] * (avg - H[k]);
         }
         else
         {
-            Mf[mf_idx] = 0.0;
+            mf[mf_idx] = 0.0;
         }
     }
 }
 
 
 __global__ void massBalance_Global(
-    int r,
-    int c,
-    const int *Xi,     
-    const int *Xj,
-    const double *Sh,       
-    double *Sh_next,  
-    const double *ST,       
-    double *ST_next,  
-    const double *Mf)       
+    Sciara *sciara)       
 {
+    // Parametri del dominio
+    int rows= sciara->domain->rows;
+    int cols= sciara->domain->cols;
+
+    // Vicini
+    int *xi= sciara->X->Xi;
+    int *xj=sciara->X->Xj;
+
+    // Buffers
+    double *sh=sciara->substates->Sh;
+    double *sh_next=sciara->substates->Sh_next;
+    double *st= sciara->substates->ST;
+    double *st_next=sciara->substates->ST_next;
+    double *mf=sciara->substates->Mf;
+
     int j = blockIdx.x * blockDim.x + threadIdx.x;
     int i = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (i >= r || j >= c) return;
+    if (i >= rows || j >= cols) return;
 
-    int idx = i * c + j;
+    int idx = i * cols + j;
 
     const int inflowsIndices[NUMBER_OF_OUTFLOWS] = {3, 2, 1, 0, 6, 7, 4, 5};
 
-    double initial_h = Sh[idx];
-    double initial_t = ST[idx];
+    double initial_h = sh[idx];
+    double initial_t = st[idx];
     
     double h_next = initial_h;
     double t_next = initial_h * initial_t; 
 
-    int layer_size = r * c;
+    int layer_size = rows * cols;
 
     for (int n = 1; n < MOORE_NEIGHBORS; n++)
     {
-        int ni = i + Xi[n];
-        int nj = j + Xj[n];
-        int n_idx = ni * c + nj;
+        int ni = i + xi[n];
+        int nj = j + xj[n];
+        int n_idx = ni * cols + nj;
 
         int out_layer = n - 1;
-        double outFlow = Mf[out_layer * layer_size + idx];
+        double outFlow = mf[out_layer * layer_size + idx];
 
         int in_layer = inflowsIndices[n - 1];
-        double inFlow = Mf[in_layer * layer_size + n_idx];
+        double inFlow = mf[in_layer * layer_size + n_idx];
 
-        double neigh_t = ST[n_idx];
+        double neigh_t = st[n_idx];
 
         h_next += inFlow - outFlow;
         t_next += (inFlow * neigh_t - outFlow * initial_t);
@@ -208,94 +250,111 @@ __global__ void massBalance_Global(
     {
         t_next /= h_next;
         
-        ST_next[idx] = t_next;
-        Sh_next[idx] = h_next;
+        st_next[idx] = t_next;
+        sh_next[idx] = h_next;
     }
 }
 
 
 __global__ void computeNewTemperatureAndSolidification_Global(
-    int r, 
-    int c,
-    double Pepsilon, 
-    double Psigma, 
-    double Pclock, 
-    double Pcool, 
-    double Prho, 
-    double Pcv, 
-    double Pac, 
-    double PTsol,
-    const double *Sz,      
-    double *Sz_next,       
-    const double *Sh,      
-    double *Sh_next,       
-    const double *ST,      
-    double *ST_next,       
-    double *Mf,            
-    double *Mhs,           
-    const bool *Mb         
+    Sciara *sciara         
 )
 {
+    // Parametri del dominio
+    int rows= sciara->domain->rows;
+    int cols= sciara->domain->cols;
+
+    // Parametri
+
+    double pepsilon=sciara->parameters->Pepsilon;
+    double psigma=sciara->parameters->Psigma;
+    double pclock=sciara->parameters->Pclock;
+    double pcool=sciara->parameters->Pcool;
+    double prho=sciara->parameters->Prho;
+    double pcv=sciara->parameters->Pcv;
+    double pac=sciara->parameters->Pac;
+    double ptsol=sciara->parameters->PTsol;
+
+    // Buffers
+    double *sh=sciara->substates->Sh;
+    double *sh_next=sciara->substates->Sh_next;
+    double *st= sciara->substates->ST;
+    double *st_next=sciara->substates->ST_next;
+    double *sz=sciara->substates->Sz;
+    double *sz_next=sciara->substates->Sz_next;
+
+    double *mf=sciara->substates->Mf;
+    double *mhs=sciara->substates->Mhs;
+    bool *mb=sciara->substates->Mb;
+
     int j = blockIdx.x * blockDim.x + threadIdx.x;
     int i = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (i >= r || j >= c) return;
+    if (i >= rows|| j >= cols) return;
 
-    int idx = i * c + j;
+    int idx = i * cols + j;
 
-    double h = Sh[idx];
-    bool is_border = Mb[idx];
+    double h = sh[idx];
+    bool is_border = mb[idx];
 
     if (h > 0.0 && !is_border)
     {
-        double T = ST[idx];
-        double z = Sz[idx];
+        double T = st[idx];
+        double z = sz[idx];
         
-        double numerator = 3.0 * pow(T, 3.0) * Pepsilon * Psigma * Pclock * Pcool;
-        double denominator = Prho * Pcv * h * Pac;
+        double numerator = 3.0 * pow(T, 3.0) * pepsilon * psigma * pclock * pcool;
+        double denominator = prho * pcv * h * pac;
         
         double aus = 1.0 + (numerator / denominator);
 
         double nT = T / pow(aus, 1.0/3.0);
 
-        if (nT > PTsol) 
+        if (nT > ptsol) 
         {
-            ST_next[idx] = nT;
+            st_next[idx] = nT;
         } 
         else 
         {   
-            Sz_next[idx] = z + h;   
-            Sh_next[idx] = 0.0;     
-            ST_next[idx] = PTsol;   
+            sz_next[idx] = z + h;   
+            sh_next[idx] = 0.0;     
+            st_next[idx] = ptsol;   
             
-            Mhs[idx] = Mhs[idx] + h;
+            mhs[idx] = mhs[idx] + h;
         }
     }
 }
 
 
 __global__ void boundaryConditions_Global(
-    int r,
-    int c,
-    const double *Mf,    
-    const bool *Mb,      
-    const double *Sh,    
-    double *Sh_next,     
-    const double *ST,    
-    double *ST_next      
+    Sciara *sciara     
 )
 {
+    // Parametri del dominio
+    int rows= sciara->domain->rows;
+    int cols= sciara->domain->cols;
+
+    // Buffers
+    double *sh=sciara->substates->Sh;
+    double *sh_next=sciara->substates->Sh_next;
+    double *st= sciara->substates->ST;
+    double *st_next=sciara->substates->ST_next;
+    double *sz=sciara->substates->Sz;
+    double *sz_next=sciara->substates->Sz_next;
+
+    double *mf=sciara->substates->Mf;
+    bool *mb=sciara->substates->Mb;
+
     int j = blockIdx.x * blockDim.x + threadIdx.x;
     int i = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (i >= r || j >= c) return;
+    if (i >= rows || j >= cols) return;
 
-    int idx = i * c + j;
+    int idx = i * cols + j;
 
-    if (Mb[idx])
+    if (mb[idx])
     {
-        Sh_next[idx] = 0.0;
-        ST_next[idx] = 0.0;
+        sh_next[idx] = 0.0;
+        st_next[idx] = 0.0;
     }
 }
 
