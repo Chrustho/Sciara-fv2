@@ -1,5 +1,5 @@
 #include <cuda_runtime.h>
-#include "Sciara.h"
+#include "../../src/Sciara.h"
 
 void allocateSubstates_proj(Sciara *sciara)
 {
@@ -19,6 +19,8 @@ void allocateSubstates_proj(Sciara *sciara)
     cudaMallocManaged((void **)&sciara->substates->Mf, size_Mf);
     cudaMallocManaged((void **)&sciara->substates->Mb, size_bool);
     cudaMallocManaged((void **)&sciara->substates->Mhs, size_double);
+
+    cudaDeviceSynchronize();
 }
 
 void deallocateSubstates(Sciara *sciara)
@@ -44,4 +46,6 @@ void deallocateSubstates(Sciara *sciara)
         cudaFree(sciara->substates->Mb);
     if (sciara->substates->Mhs)
         cudaFree(sciara->substates->Mhs);
+
+    cudaDeviceSynchronize();
 }

@@ -1,6 +1,7 @@
 #include "src/Sciara.h"
 #include "src/io.h"
 #include "src/util.hpp"
+#include <cuda_runtime.h>
 
 // ----------------------------------------------------------------------------
 // I/O parameters used to index argv[]
@@ -239,12 +240,12 @@ void boundaryConditions(int i, int j,
                         double *ST,
                         double *ST_next)
 {
-  return;
   if (GET(Mb, c, i, j))
   {
     SET(Sh_next, c, i, j, 0.0);
     SET(ST_next, c, i, j, 0.0);
   }
+  return;
 }
 
 double reduceAdd(int r, int c, double *buffer)
