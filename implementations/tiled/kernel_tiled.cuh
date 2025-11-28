@@ -3,24 +3,24 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 
-void emitLava_global(
+void emitLava(
     int i,
     int j,
     Sciara *sciara);
 
-__global__ void computeOutflows_Global(
+__global__ void computeOutflows_Tiled(
     Sciara *sciara);
 
 
-__global__ void massBalance_Global(
+__global__ void massBalance_Tiled(
     Sciara *sciara);  
 
 
-__global__ void computeNewTemperatureAndSolidification_Global(
+__global__ void computeNewTemperatureAndSolidification_Tiled(
     Sciara *sciara         
 );
 
-__global__ void boundaryConditions_Global(
+__global__ void boundaryConditions_Tiled(
     Sciara *sciara     
 );
 

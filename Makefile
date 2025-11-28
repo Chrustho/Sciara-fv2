@@ -7,7 +7,7 @@ ifndef CPPC
 endif
 
 NVCC=nvcc
-NVCODE = -gencode arch=compute_52, code="compute_52" -ftz=true -I./src
+NVCODE = -gencode arch=compute_52,code=sm_52 -ftz=true -I./src -I./implementations
 NVFLAGS = -O3 -std=c++14 $(NVCODE)
 
 
@@ -34,28 +34,28 @@ THICKNESS_THRESHOLD=1.0#resulting in 16000 steps
 # COMPILATION #
 ###############
 
-EXEC_OMP = sciara_omp
-EXEC_SERIAL = sciara_serial
+#EXEC_OMP = sciara_omp
+#EXEC_SERIAL = sciara_serial
 EXEC_CUDA = sciara_cuda
 
 default:all
 
 all:
-	$(CPPC) *.cpp -o $(EXEC_SERIAL) -O0
-	$(CPPC) *.cpp -o $(EXEC_OMP) -fopenmp -O0
-	$(NVCC) $(NVFLAGS) *.cpp kernel.cu -o $(EXEC_CUDA)
+#	$(CPPC) *.cpp -o $(EXEC_SERIAL) -O0
+#	$(CPPC) *.cpp -o $(EXEC_OMP) -fopenmp -O0
+	$(NVCC) $(NVFLAGS) *.cpp src/*cpp sciara_fv2.cu -o $(EXEC_CUDA)
 
 
 #############
 # EXECUTION #
 #############
 
-THREADS = 8
-run_omp:
-	OMP_NUM_THREADS=$(THREADS) ./$(EXEC_OMP) $(INPUT_CONFIG) $(OUTPUT_CONFIG) $(STEPS) $(REDUCE_INTERVL) $(THICKNESS_THRESHOLD) && md5sum $(OUTPUT)
+#THREADS = 8
+#run_omp:
+#	OMP_NUM_THREADS=$(THREADS) ./$(EXEC_OMP) $(INPUT_CONFIG) $(OUTPUT_CONFIG) $(STEPS) $(REDUCE_INTERVL) $(THICKNESS_THRESHOLD) && md5sum $(OUTPUT)
 
-run:
-	./$(EXEC_SERIAL) $(INPUT_CONFIG) $(OUTPUT_CONFIG) $(STEPS) $(REDUCE_INTERVL) $(THICKNESS_THRESHOLD) && md5sum $(OUTPUT)
+#run:
+#	./$(EXEC_SERIAL) $(INPUT_CONFIG) $(OUTPUT_CONFIG) $(STEPS) $(REDUCE_INTERVL) $(THICKNESS_THRESHOLD) && md5sum $(OUTPUT)
 	
 run_cuda:
 	./$(EXEC_CUDA) $(INPUT_CONFIG) $(OUTPUT_CONFIG) $(STEPS) $(REDUCE_INTERVL) $(THICKNESS_THRESHOLD) && md5sum $(OUTPUT)
@@ -66,7 +66,7 @@ run_cuda:
 ############
 
 clean:
-	rm -f $(EXEC_OMP) $(EXEC_SERIAL) $(EXEC_CUDA) *.o *output*
+	rm -f $(EXEC_CUDA) *.o *output*
 
 wipe:
 	rm -f *.o *output*

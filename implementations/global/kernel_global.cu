@@ -1,8 +1,9 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
-#include "../../sciara_fv2.cpp"
+#include "../../sciara_fv2.cu"
+#include "kernel_global.cuh"
 
-void emitLava(
+void emitLava_global(
     int i,
     int j,
     Sciara *sciara) 
@@ -296,12 +297,11 @@ __global__ void computeNewTemperatureAndSolidification_Global(
 
     double h = sh[idx];
     bool is_border = mb[idx];
+    double T = st[idx];
+    double z = sz[idx];
 
     if (h > 0.0 && !is_border)
     {
-        double T = st[idx];
-        double z = sz[idx];
-        
         double numerator = 3.0 * pow(T, 3.0) * pepsilon * psigma * pclock * pcool;
         double denominator = prho * pcv * h * pac;
         
@@ -358,202 +358,4 @@ __global__ void boundaryConditions_Global(
     }
 }
 
-__global__ void reduceAdd_Kernel(int n, const double *buffer, double *global_result)
-{
-    extern __shared__ double sdata[];
 
-    unsigned int tid = threadIdx.x;
-    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-    unsigned int gridSize = blockDim.x * gridDim.x;
-
-    double localSum = 0.0;
-    while (i < n)
-    {
-        localSum += buffer[i];
-        i += gridSize;
-    }
-    sdata[tid] = localSum;
-    __syncthreads();
-
-    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
-    {
-        if (tid < s)
-        {
-            sdata[tid] += sdata[tid + s];
-        }
-        __syncthreads();
-    }
-
-    if (tid == 0)
-    {
-        double toAdd= sdata[0];
-        atomicAdd(global_result, toAdd);
-    }
-}
-
-/*
-########## MAIN ############
-
-int main(int argc, char **argv)
-{
-    Sciara *sciara;
-    init(sciara);
-
-    int max_steps = atoi(argv[MAX_STEPS_ID]);
-    loadConfiguration(argv[INPUT_PATH_ID], sciara);
-
-    allocateSubstates(sciara);
-
-    int *d_Xi, *d_Xj;
-    cudaMalloc((void**)&d_Xi, MOORE_NEIGHBORS * sizeof(int));
-    cudaMalloc((void**)&d_Xj, MOORE_NEIGHBORS * sizeof(int));
-    cudaMemcpy(d_Xi, sciara->X->Xi, MOORE_NEIGHBORS * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_Xj, sciara->X->Xj, MOORE_NEIGHBORS * sizeof(int), cudaMemcpyHostToDevice);
-
-    int rows = sciara->domain->rows;
-    int cols = sciara->domain->cols;
-    
-    dim3 block(16, 16);
-    dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
-
-    double total_current_lava = -1;
-    simulationInitialize(sciara);
-
-    util::Timer cl_timer;
-
-    int reduceInterval = atoi(argv[REDUCE_INTERVL_ID]);
-    double thickness_threshold = atof(argv[THICKNESS_THRESHOLD_ID]);
-
-    size_t matrixSize = rows * cols * sizeof(double);
-
-    while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
-           (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
-           (total_current_lava == -1 || total_current_lava > thickness_threshold))
-    {
-        sciara->simulation->elapsed_time += sciara->parameters->Pclock;
-        sciara->simulation->step++;
-
-       
-        cudaDeviceSynchronize();
-
-        
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                emitLava(i, j, rows, cols,
-                         sciara->simulation->vent,
-                         sciara->simulation->elapsed_time,
-                         sciara->parameters->Pclock,
-                         sciara->simulation->emission_time,
-                         sciara->simulation->total_emitted_lava,
-                         sciara->parameters->Pac,
-                         sciara->parameters->PTvent,
-                         sciara->substates->Sh,
-                         sciara->substates->Sh_next,
-                         sciara->substates->ST_next);
-            }
-        }
-
-
-        cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
-
-
-        computeOutflows_Global<<<grid, block>>>(
-            rows, cols,
-            d_Xi, d_Xj, // Usiamo i puntatori device allocati prima
-            sciara->substates->Sz,
-            sciara->substates->Sh,
-            sciara->substates->ST,
-            sciara->substates->Mf,
-            sciara->parameters->Pc,
-            sciara->parameters->a,
-            sciara->parameters->b,
-            sciara->parameters->c,
-            sciara->parameters->d
-        );
-
-
-       
-        massBalance_Global<<<grid, block>>>(
-            rows, cols,
-            d_Xi, d_Xj,
-            sciara->substates->Sh,
-            sciara->substates->Sh_next,
-            sciara->substates->ST,
-            sciara->substates->ST_next,
-            sciara->substates->Mf
-        );
-
-        cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
-
-
-     
-        computeNewTemperatureAndSolidification_Global<<<grid, block>>>(
-            rows, cols,
-            sciara->parameters->Pepsilon,
-            sciara->parameters->Psigma,
-            sciara->parameters->Pclock,
-            sciara->parameters->Pcool,
-            sciara->parameters->Prho,
-            sciara->parameters->Pcv,
-            sciara->parameters->Pac,
-            sciara->parameters->PTsol,
-            sciara->substates->Sz,
-            sciara->substates->Sz_next,
-            sciara->substates->Sh,
-            sciara->substates->Sh_next,
-            sciara->substates->ST,
-            sciara->substates->ST_next,
-            sciara->substates->Mf,
-            sciara->substates->Mhs,
-            sciara->substates->Mb
-        );
-
-        cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
-
-
-        boundaryConditions_Global<<<grid, block>>>(
-            rows, cols,
-            sciara->substates->Mf,
-            sciara->substates->Mb,
-            sciara->substates->Sh,
-            sciara->substates->Sh_next,
-            sciara->substates->ST,
-            sciara->substates->ST_next
-        );
-
-        cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
-
-
-
-        if (sciara->simulation->step % reduceInterval == 0)
-        {
-            total_current_lava = reduceAdd(rows, cols, sciara->substates->Sh);
-        }
-    }
-
-
-    cudaDeviceSynchronize();
-    
-    double cl_time = static_cast<double>(cl_timer.getTimeMilliseconds()) / 1000.0;
-    printf("Step %d\n", sciara->simulation->step);
-    printf("Elapsed time [s]: %lf\n", cl_time);
-    printf("Emitted lava [m]: %lf\n", sciara->simulation->total_emitted_lava);
-    printf("Current lava [m]: %lf\n", total_current_lava);
-
-    printf("Saving output to %s...\n", argv[OUTPUT_PATH_ID]);
-    saveConfiguration(argv[OUTPUT_PATH_ID], sciara);
-
-    printf("Releasing memory...\n");
-    cudaFree(d_Xi);
-    cudaFree(d_Xj);
-    deallocateSubstates(sciara); 
-    finalize(sciara);
-
-    return 0;
-}
-*/
