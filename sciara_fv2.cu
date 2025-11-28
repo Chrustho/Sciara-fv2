@@ -50,6 +50,50 @@ void emitLava(
     }
 }
 
+void emitLava_global(
+    int i,
+    int j,
+    Sciara *sciara) 
+{
+    // Parametri del dominio
+    int rows= sciara->domain->rows;
+    int cols= sciara->domain->cols;
+
+    // Parametri della simulazione
+    double pTvent= sciara->parameters->PTvent;
+    double elapsed_time= sciara->simulation->elapsed_time;
+    double pclock = sciara->parameters->Pclock;
+    unsigned int em_time= sciara->simulation->emission_time; 
+    double pac= sciara->parameters->Pac;
+    double total_em_lava= sciara->simulation->total_emitted_lava;
+
+    // Buffers
+    double *sh=sciara->substates->Sh;
+    double *sh_next= sciara->substates->Sh_next;
+    double *st_next= sciara->substates->ST_next;
+
+    int size= sciara->simulation->vent.size();
+
+    for (int k = 0; k < size; k++)
+    {
+        TVent curr_vent= sciara->simulation->vent[k];
+
+        if (i == curr_vent.y() && j == curr_vent.x())
+    {
+
+        double thickness_add = curr_vent.thickness(elapsed_time, pclock, em_time, pac);
+
+        double current_Sh = GET(sh, cols, i, j);
+
+        SET(sh_next, cols, i, j, current_Sh + thickness_add);
+
+        SET(st_next, cols, i, j, pTvent);
+
+        total_em_lava += thickness_add;
+    }
+    }
+}
+
 void computeOutflows(
     int i,
     int j,
@@ -309,6 +353,90 @@ void deallocateSubstates_proj(Sciara *sciara)
     cudaDeviceSynchronize();
 }
 
+void printSciaraConfig(Sciara* sciara) {
+    if (sciara == NULL) {
+        printf("\n[ERROR] Oggetto Sciara nullo!\n");
+        return;
+    }
+
+    printf("\n================ SCIARA CONFIGURATION DUMP ================\n");
+
+    // --- DOMAIN ---
+    if (sciara->domain) {
+        printf("\n[DOMAIN]\n");
+        printf("  Rows: %d\n", sciara->domain->rows);
+        printf("  Cols: %d\n", sciara->domain->cols);
+    } else {
+        printf("\n[DOMAIN] is NULL\n");
+    }
+
+    // --- PARAMETERS ---
+    if (sciara->parameters) {
+        printf("\n[PARAMETERS]\n");
+        printf("  Pclock (Clock):         %lf\n", sciara->parameters->Pclock);
+        printf("  Pc (Cell Side):         %lf\n", sciara->parameters->Pc);
+        printf("  Pac (Cell Area):        %lf\n", sciara->parameters->Pac);
+        printf("  PTsol (Solid. Temp):    %lf\n", sciara->parameters->PTsol);
+        printf("  PTvent (Vent Temp):     %lf\n", sciara->parameters->PTvent);
+        printf("  Pr_Tsol:                %lf\n", sciara->parameters->Pr_Tsol);
+        printf("  Pr_Tvent:               %lf\n", sciara->parameters->Pr_Tvent);
+        printf("  a (Param):              %lf\n", sciara->parameters->a);
+        printf("  b (Param):              %lf\n", sciara->parameters->b);
+        printf("  Phc_Tsol:               %lf\n", sciara->parameters->Phc_Tsol);
+        printf("  Phc_Tvent:              %lf\n", sciara->parameters->Phc_Tvent);
+        printf("  c (Param):              %lf\n", sciara->parameters->c);
+        printf("  d (Param):              %lf\n", sciara->parameters->d);
+        printf("  Pcool:                  %lf\n", sciara->parameters->Pcool);
+        printf("  Prho (Density):         %lf\n", sciara->parameters->Prho);
+        printf("  Pepsilon (Emissivity):  %lf\n", sciara->parameters->Pepsilon);
+        printf("  Psigma (Boltzmann):     %le\n", sciara->parameters->Psigma); // %le per numeri molto piccoli
+        printf("  Pcv (Specific Heat):    %lf\n", sciara->parameters->Pcv);
+        printf("  Algorithm ID:           %d\n",  sciara->parameters->algorithm);
+    } else {
+        printf("\n[PARAMETERS] is NULL\n");
+    }
+
+    // --- SIMULATION ---
+    if (sciara->simulation) {
+        printf("\n[SIMULATION]\n");
+        printf("  Step:                   %d\n", sciara->simulation->step);
+        printf("  Maximum Steps:          %d\n", sciara->simulation->maximum_steps);
+        printf("  Elapsed Time:           %lf\n", sciara->simulation->elapsed_time);
+        printf("  Emission Time:          %u\n", sciara->simulation->emission_time);
+        printf("  Effusion Duration:      %lf\n", sciara->simulation->effusion_duration);
+        printf("  Total Emitted Lava:     %lf\n", sciara->simulation->total_emitted_lava);
+        printf("  Stopping Threshold:     %lf\n", sciara->simulation->stopping_threshold);
+        printf("  Refreshing Step:        %d\n", sciara->simulation->refreshing_step);
+        printf("  Thickness Vis. Thresh:  %lf\n", sciara->simulation->thickness_visual_threshold);
+        
+        // Vents Info
+        printf("  Number of Vents:        %lu\n", sciara->simulation->vent.size());
+        for(size_t i=0; i < sciara->simulation->vent.size(); i++) {
+            // Assumo che TVent abbia i metodi x() e y(). Se da errore, commenta queste righe.
+            printf("    Vent #%lu -> X: %d, Y: %d\n", i, sciara->simulation->vent[i].x(), sciara->simulation->vent[i].y());
+        }
+
+        // Emission Rates Info
+        printf("  Emission Rates count:   %lu\n", sciara->simulation->emission_rate.size());
+    } else {
+        printf("\n[SIMULATION] is NULL\n");
+    }
+
+    // --- SUBSTATES (Controllo allocazione) ---
+    // Nota: A questo punto i buffer potrebbero non essere ancora allocati se chiami la stampa prima di allocateSubstates_proj
+    if (sciara->substates) {
+        printf("\n[SUBSTATES POINTERS] (Check if NULL)\n");
+        printf("  Sz  (Altitude): %p\n", (void*)sciara->substates->Sz);
+        printf("  Sh  (Lava H):   %p\n", (void*)sciara->substates->Sh);
+        printf("  ST  (Temp):     %p\n", (void*)sciara->substates->ST);
+        printf("  Mf  (Flows):    %p\n", (void*)sciara->substates->Mf);
+        printf("  Mb  (Border):   %p\n", (void*)sciara->substates->Mb);
+    } else {
+        printf("\n[SUBSTATES] is NULL\n");
+    }
+    
+    printf("===========================================================\n\n");
+}
 
 int main(int argc, char **argv)
 {
@@ -319,6 +447,8 @@ int main(int argc, char **argv)
     loadConfiguration(argv[INPUT_PATH_ID], sciara);
 
     allocateSubstates_proj(sciara);
+
+    printSciaraConfig(sciara);
 
     int *d_Xi, *d_Xj;
     cudaMallocManaged((void**)&d_Xi, MOORE_NEIGHBORS * sizeof(int));
@@ -332,8 +462,12 @@ int main(int argc, char **argv)
     dim3 block(32, 32);
     dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
+    printf("Inizializzati i blocchi\n");
+
     double total_current_lava = -1;
     simulationInitialize(sciara);
+
+    printf("Inizializzata la simulazione\n");
 
     util::Timer cl_timer;
 
@@ -370,21 +504,28 @@ int main(int argc, char **argv)
 
         cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
         cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
+        cudaDeviceSynchronize();
 
         computeNewTemperatureAndSolidification_Global<<<grid, block>>>(sciara);
 
         cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, matrixSize, cudaMemcpyDeviceToDevice);
         cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
         cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
+        cudaDeviceSynchronize();
+
 
         boundaryConditions_Global<<<grid, block>>>(sciara);
 
         cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
         cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
+        cudaDeviceSynchronize();
 
         if (sciara->simulation->step % reduceInterval == 0)
         {
-            total_current_lava = reduceAdd(rows, cols, sciara->substates->Sh);
+          printf("valore lava pre step %d, %lf\n", sciara->simulation->step, total_current_lava);
+          cudaDeviceSynchronize();
+          total_current_lava = reduceAdd(rows, cols, sciara->substates->Sh);
+          printf("Fatta reduceAdd a step %d, %lf\n", sciara->simulation->step,total_current_lava);
         }
     }
 

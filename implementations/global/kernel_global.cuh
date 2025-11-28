@@ -3,10 +3,6 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 
-void emitLava_global(
-    int i,
-    int j,
-    Sciara *sciara);
 
 __global__ void computeOutflows_Global(
     Sciara *sciara);

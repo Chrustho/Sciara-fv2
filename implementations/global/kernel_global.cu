@@ -1,51 +1,8 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
-#include "../../sciara_fv2.cu"
 #include "kernel_global.cuh"
 
-void emitLava_global(
-    int i,
-    int j,
-    Sciara *sciara) 
-{
-    // Parametri del dominio
-    int rows= sciara->domain->rows;
-    int cols= sciara->domain->cols;
 
-    // Parametri della simulazione
-    double pTvent= sciara->parameters->PTvent;
-    double elapsed_time= sciara->simulation->elapsed_time;
-    double pclock = sciara->parameters->Pclock;
-    unsigned int em_time= sciara->simulation->emission_time; 
-    double pac= sciara->parameters->Pac;
-    double total_em_lava= sciara->simulation->total_emitted_lava;
-
-    // Buffers
-    double *sh=sciara->substates->Sh;
-    double *sh_next= sciara->substates->Sh_next;
-    double *st_next= sciara->substates->ST_next;
-
-    int size= sciara->simulation->vent.size();
-
-    for (int k = 0; k < size; k++)
-    {
-        TVent curr_vent= sciara->simulation->vent[k];
-
-        if (i == curr_vent.y() && j == curr_vent.x())
-    {
-
-        double thickness_add = curr_vent.thickness(elapsed_time, pclock, em_time, pac);
-
-        double current_Sh = GET(sh, cols, i, j);
-
-        SET(sh_next, cols, i, j, current_Sh + thickness_add);
-
-        SET(st_next, cols, i, j, pTvent);
-
-        total_em_lava += thickness_add;
-    }
-    }
-}
 
 __global__ void computeOutflows_Global(
     Sciara *sciara)
@@ -104,6 +61,9 @@ __global__ void computeOutflows_Global(
 
         int ni = i + xi[k];
         int nj = j + xj[k];
+
+        if (ni < 0 || ni >= rows || nj < 0 || nj >= cols) continue;
+        
         int idx_k = ni * cols + nj;
         if (idx_k < 0 || idx_k > rows*cols)
         {
@@ -234,6 +194,12 @@ __global__ void massBalance_Global(
         int nj = j + xj[n];
         int n_idx = ni * cols + nj;
 
+        if (ni< 0 || ni >= rows || nj<0 || nj>=cols)
+        {
+            continue;
+        }
+        
+
         int out_layer = n - 1;
         double outFlow = mf[out_layer * layer_size + idx];
 
@@ -299,6 +265,10 @@ __global__ void computeNewTemperatureAndSolidification_Global(
     bool is_border = mb[idx];
     double T = st[idx];
     double z = sz[idx];
+
+    sciara->substates->Sz_next[idx] = z;
+    sciara->substates->Sh_next[idx] = h;
+    sciara->substates->ST_next[idx] = T;
 
     if (h > 0.0 && !is_border)
     {

@@ -2,14 +2,27 @@
 # COMPILER #
 ############
 
-ifndef CPPC
-	CPPC=g++
-endif
+NVCC      = nvcc
+# Aggiunto -I./implementations/global per trovare gli header dei kernel
+INCLUDES  = -I./src -I./implementations/global
+NVCODE    = -gencode arch=compute_52,code=sm_52 -ftz=true
+NVFLAGS   = -O3 -std=c++14 $(NVCODE) $(INCLUDES)
 
-NVCC=nvcc
-NVCODE = -gencode arch=compute_52,code=sm_52 -ftz=true -I./src -I./implementations
-NVFLAGS = -O3 -std=c++14 $(NVCODE)
+###########
+# SOURCES #
+###########
 
+# 1. File C++ nella root (es. Sciara.cpp)
+SRCS_ROOT = $(wildcard *.cpp)
+# 2. File C++ nella cartella src
+SRCS_SRC  = $(wildcard src/*.cpp)
+# 3. File CUDA dei kernel (FONDAMENTALE: mancava questo!)
+SRCS_KERNELS = implementations/global/kernel_global.cu
+# 4. File CUDA principale
+SRCS_MAIN = sciara_fv2.cu
+
+# Uniamo tutto in una lista
+ALL_SOURCES = $(SRCS_ROOT) $(SRCS_SRC) $(SRCS_KERNELS) $(SRCS_MAIN)
 
 ###########
 # DATASET #
@@ -20,46 +33,27 @@ OUTPUT_CONFIG=./data/2006/output_2006
 OUTPUT=./data/2006/output_2006_000000016000_Temperature.asc #md5sum: 0c071cd864046d3c6aaf30997290ad6c
 STEPS=1000
 REDUCE_INTERVL=1000
-THICKNESS_THRESHOLD=1.0#resulting in 16000 steps
-
-
-###############################
-# VIM'S TERMDEBUG RUN COMMAND #
-###############################
-
-# Run ./data/2006/2006_000000000000.cfg ./data/2006_OUT/output_2006 1000 1000 1.0
-
+THICKNESS_THRESHOLD=1.0
 
 ###############
 # COMPILATION #
 ###############
 
-#EXEC_OMP = sciara_omp
-#EXEC_SERIAL = sciara_serial
 EXEC_CUDA = sciara_cuda
 
-default:all
+default: all
 
-all:
-#	$(CPPC) *.cpp -o $(EXEC_SERIAL) -O0
-#	$(CPPC) *.cpp -o $(EXEC_OMP) -fopenmp -O0
-	$(NVCC) $(NVFLAGS) *.cpp src/*cpp sciara_fv2.cu -o $(EXEC_CUDA)
+all: $(EXEC_CUDA)
 
+$(EXEC_CUDA):
+	$(NVCC) $(NVFLAGS) $(ALL_SOURCES) -o $(EXEC_CUDA)
 
 #############
 # EXECUTION #
 #############
 
-#THREADS = 8
-#run_omp:
-#	OMP_NUM_THREADS=$(THREADS) ./$(EXEC_OMP) $(INPUT_CONFIG) $(OUTPUT_CONFIG) $(STEPS) $(REDUCE_INTERVL) $(THICKNESS_THRESHOLD) && md5sum $(OUTPUT)
-
-#run:
-#	./$(EXEC_SERIAL) $(INPUT_CONFIG) $(OUTPUT_CONFIG) $(STEPS) $(REDUCE_INTERVL) $(THICKNESS_THRESHOLD) && md5sum $(OUTPUT)
-	
-run_cuda:
+run_cuda: $(EXEC_CUDA)
 	./$(EXEC_CUDA) $(INPUT_CONFIG) $(OUTPUT_CONFIG) $(STEPS) $(REDUCE_INTERVL) $(THICKNESS_THRESHOLD) && md5sum $(OUTPUT)
-
 
 ############
 # CLEAN UP #
