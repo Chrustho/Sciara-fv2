@@ -7,42 +7,106 @@ void emitLava(
     int j,
     Sciara *sciara) 
 {
-    // Parametri del dominio
-    int rows= sciara->domain->rows;
-    int cols= sciara->domain->cols;
+  // Parametri del dominio
+  int rows= sciara->domain->rows;
+  int cols= sciara->domain->cols;
 
-    // Parametri della simulazione
-    double pTvent= sciara->parameters->PTvent;
-    double elapsed_time= sciara->simulation->elapsed_time;
-    double pclock = sciara->parameters->Pclock;
-    unsigned int em_time= sciara->simulation->emission_time; 
-    double pac= sciara->parameters->Pac;
-    double total_em_lava= sciara->simulation->total_emitted_lava;
+  // Parametri della simulazione
+  double pTvent= sciara->parameters->PTvent;
+  double elapsed_time= sciara->simulation->elapsed_time;
+  double pclock = sciara->parameters->Pclock;
+  unsigned int em_time= sciara->simulation->emission_time; 
+  double pac= sciara->parameters->Pac;
+  double total_em_lava= sciara->simulation->total_emitted_lava;
 
-    // Buffers
-    double *sh=sciara->substates->Sh;
-    double *sh_next= sciara->substates->Sh_next;
-    double *st_next= sciara->substates->ST_next;
+  // Buffers
+  double *sh=sciara->substates->Sh;
+  double *sh_next= sciara->substates->Sh_next;
+  double *st_next= sciara->substates->ST_next;
 
-    int size= sciara->simulation->vent.size();
+  int size= sciara->simulation->vent.size();
 
-    for (int k = 0; k < size; k++)
+  for (int k = 0; k < size; k++)
+  {
+    TVent curr_vent= sciara->simulation->vent[k];
+
+    if (i == curr_vent.y() && j == curr_vent.x())
     {
-        TVent curr_vent= sciara->simulation->vent[k];
 
-        if (i == curr_vent.y() && j == curr_vent.x())
-    {
+      double thickness_add = curr_vent.thickness(elapsed_time, pclock, em_time, pac);
 
-        double thickness_add = curr_vent.thickness(elapsed_time, pclock, em_time, pac);
+      double current_Sh = GET(sh, cols, i, j);
 
-        double current_Sh = GET(sh, cols, i, j);
+      SET(sh_next, cols, i, j, current_Sh + thickness_add);
 
-        SET(sh_next, cols, i, j, current_Sh + thickness_add);
+      SET(st_next, cols, i, j, pTvent);
 
-        SET(st_next, cols, i, j, pTvent);
-
-        total_em_lava += thickness_add;
+      total_em_lava += thickness_add;
     }
+  }
+}
+struct VentGPU {int i; int j; };
+struct emittedLavaInput{
+  /* Parametri per calcolare la thickness di una singola cella */
+  double sim_elapsed_time;
+  double Pt;
+  unsigned int emission_time;
+  double Pac;
+  int emission_rate_size;
+  double *emission_rate;
+  /* Input effettivo */
+  double *Sh_next;
+  double *St_next;
+  VentGPU *vents;
+  int vents_size;
+  int c;
+  int r;
+  double PTvent;
+  /* Variabile su cui scriveremo in output in maniera atomica*/
+  int totalEmittedLava;
+};
+
+//TODO: emission_rate_size ed emission_rate devono NECESSARIAMENTE essere pre-computati
+// dalla CPU e inseriti nella struct emittedLavaInput, questo perché non abbiamo accesso alla classe C++.
+__global__ void emitLava(emittedLavaInput *input) {
+    int ty = threadIdx.y;
+    int tx = threadIdx.x;
+    int row = blockIdx.y * blockDim.y + ty;
+    int col = blockIdx.x * blockDim.x + tx;
+
+    int totalCols = input->c;
+    int totalRows = input->r;
+
+    int idx = row * totalCols + col;
+    if (row < totalRows && col < totalCols) {
+      int ventsSize = input->vents_size;
+      /* Verifico che il mio thread sia posizionato su una bocca */
+      for (int i = 0; i < ventsSize; i++) {
+        /* spacchetto le informazioni */
+        VentGPU *vents = input->vents;
+        double *Sh_next = input-> Sh_next;
+        double *St_next = input-> St_next;
+        double sim_elapsed_time = input->sim_elapsed_time;
+        double Pt = input->Pt;
+        unsigned int emission_time = input->emission_time;
+        double Pac = input->Pac;
+        double PTvent = input->PTvent;
+        int emission_rate_size = input->emission_rate_size;
+        double *emission_rate = input->emission_rate;
+
+        if (vents[i].i == row && vents[i].j == col) {
+          double thickness = 0.0;
+          /* calcolo il nuovo spessore */
+          i = (unsigned int) (sim_elapsed_time / emission_time);
+          if (i >= emission_rate_size)
+            thickness = 0.0;
+          else
+            thickness = emission_rate[i] / Pac * Pt;
+
+          Sh_next[idx] += thickness;
+          St_next[idx] = PTvent;
+        }
+      }
     }
 }
 
