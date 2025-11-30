@@ -220,6 +220,11 @@ __global__ void massBalance_Global(
         st_next[idx] = t_next;
         sh_next[idx] = h_next;
     }
+    else 
+    {
+        sh_next[idx] = 0.0;
+        st_next[idx] = 0.0;
+    }
 }
 
 
