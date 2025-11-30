@@ -22,16 +22,29 @@ void allocateSubstates(Sciara *sciara)
 
 void deallocateSubstates(Sciara *sciara)
 {
-	if(sciara->substates->Sz)       delete[] sciara->substates->Sz;
-  if(sciara->substates->Sz_next)  delete[] sciara->substates->Sz_next;
-	if(sciara->substates->Sh)       delete[] sciara->substates->Sh;
-  if(sciara->substates->Sh_next)  delete[] sciara->substates->Sh_next;
-	if(sciara->substates->ST)       delete[] sciara->substates->ST;
-  if(sciara->substates->ST_next)  delete[] sciara->substates->ST_next;
-	if(sciara->substates->Mf)       delete[] sciara->substates->Mf;
-//if(sciara->substates->Mv)       delete[] sciara->substates->Mv;
-	if(sciara->substates->Mb)       delete[] sciara->substates->Mb;
-	if(sciara->substates->Mhs)      delete[] sciara->substates->Mhs;
+	if (sciara->substates->Sz)
+        cudaFree(sciara->substates->Sz);
+    if (sciara->substates->Sz_next)
+        cudaFree(sciara->substates->Sz_next);
+
+    if (sciara->substates->Sh)
+        cudaFree(sciara->substates->Sh);
+    if (sciara->substates->Sh_next)
+        cudaFree(sciara->substates->Sh_next);
+
+    if (sciara->substates->ST)
+        cudaFree(sciara->substates->ST);
+    if (sciara->substates->ST_next)
+        cudaFree(sciara->substates->ST_next);
+
+    if (sciara->substates->Mf)
+        cudaFree(sciara->substates->Mf);
+    if (sciara->substates->Mb)
+        cudaFree(sciara->substates->Mb);
+    if (sciara->substates->Mhs)
+        cudaFree(sciara->substates->Mhs);
+
+    cudaDeviceSynchronize();
 }
 
 
