@@ -55,43 +55,43 @@ void emitLava_global(
     int j,
     Sciara *sciara) 
 {
-    // Parametri del dominio
-    int rows= sciara->domain->rows;
-    int cols= sciara->domain->cols;
+  // Parametri del dominio
+  int rows= sciara->domain->rows;
+  int cols= sciara->domain->cols;
 
-    // Parametri della simulazione
-    double pTvent= sciara->parameters->PTvent;
-    double elapsed_time= sciara->simulation->elapsed_time;
-    double pclock = sciara->parameters->Pclock;
-    unsigned int em_time= sciara->simulation->emission_time; 
-    double pac= sciara->parameters->Pac;
-    double total_em_lava= sciara->simulation->total_emitted_lava;
+  // Parametri della simulazione
+  double pTvent= sciara->parameters->PTvent;
+  double elapsed_time= sciara->simulation->elapsed_time;
+  double pclock = sciara->parameters->Pclock;
+  unsigned int em_time= sciara->simulation->emission_time; 
+  double pac= sciara->parameters->Pac;
+  double total_em_lava= sciara->simulation->total_emitted_lava;
 
-    // Buffers
-    double *sh=sciara->substates->Sh;
-    double *sh_next= sciara->substates->Sh_next;
-    double *st_next= sciara->substates->ST_next;
+  // Buffers
+  double *sh=sciara->substates->Sh;
+  double *sh_next= sciara->substates->Sh_next;
+  double *st_next= sciara->substates->ST_next;
 
-    int size= sciara->simulation->vent.size();
+  int size= sciara->simulation->vent.size();
 
-    for (int k = 0; k < size; k++)
+  for (int k = 0; k < size; k++)
+  {
+    TVent curr_vent= sciara->simulation->vent[k];
+
+    if (i == curr_vent.y() && j == curr_vent.x())
     {
-        TVent curr_vent= sciara->simulation->vent[k];
 
-        if (i == curr_vent.y() && j == curr_vent.x())
-    {
+      double thickness_add = curr_vent.thickness(elapsed_time, pclock, em_time, pac);
 
-        double thickness_add = curr_vent.thickness(elapsed_time, pclock, em_time, pac);
+      double current_Sh = GET(sh, cols, i, j);
 
-        double current_Sh = GET(sh, cols, i, j);
+      SET(sh_next, cols, i, j, current_Sh + thickness_add);
 
-        SET(sh_next, cols, i, j, current_Sh + thickness_add);
+      SET(st_next, cols, i, j, pTvent);
 
-        SET(st_next, cols, i, j, pTvent);
-
-        total_em_lava += thickness_add;
+      total_em_lava += thickness_add;
     }
-    }
+  }
 }
 
 void computeOutflows(
@@ -326,32 +326,7 @@ void allocateSubstates_proj(Sciara *sciara)
     cudaDeviceSynchronize();
 }
 
-void deallocateSubstates_proj(Sciara *sciara)
-{
-    if (sciara->substates->Sz)
-        cudaFree(sciara->substates->Sz);
-    if (sciara->substates->Sz_next)
-        cudaFree(sciara->substates->Sz_next);
 
-    if (sciara->substates->Sh)
-        cudaFree(sciara->substates->Sh);
-    if (sciara->substates->Sh_next)
-        cudaFree(sciara->substates->Sh_next);
-
-    if (sciara->substates->ST)
-        cudaFree(sciara->substates->ST);
-    if (sciara->substates->ST_next)
-        cudaFree(sciara->substates->ST_next);
-
-    if (sciara->substates->Mf)
-        cudaFree(sciara->substates->Mf);
-    if (sciara->substates->Mb)
-        cudaFree(sciara->substates->Mb);
-    if (sciara->substates->Mhs)
-        cudaFree(sciara->substates->Mhs);
-
-    cudaDeviceSynchronize();
-}
 
 void printSciaraConfig(Sciara* sciara) {
     if (sciara == NULL) {
@@ -459,7 +434,7 @@ int main(int argc, char **argv)
     int rows = sciara->domain->rows;
     int cols = sciara->domain->cols;
     
-    dim3 block(32, 32);
+    dim3 block(16, 16);
     dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
     printf("Inizializzati i blocchi\n");
@@ -476,8 +451,8 @@ int main(int argc, char **argv)
 
     size_t matrixSize = rows * cols * sizeof(double);
 
-    while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
-           (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
+    while (((max_steps > 0 && sciara->simulation->step < max_steps) || 
+           (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration)) && 
            (total_current_lava == -1 || total_current_lava > thickness_threshold))
     {
         sciara->simulation->elapsed_time += sciara->parameters->Pclock;
@@ -487,10 +462,13 @@ int main(int argc, char **argv)
         cudaDeviceSynchronize();
 
         
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                emitLava_global(i, j, sciara);
-            }
+        if (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration)
+        {
+          for (int i = 0; i < rows; i++) {
+              for (int j = 0; j < cols; j++) {
+                  emitLava_global(i, j, sciara);
+              }
+          }
         }
 
 
@@ -544,7 +522,7 @@ int main(int argc, char **argv)
     printf("Releasing memory...\n");
     cudaFree(d_Xi);
     cudaFree(d_Xj);
-    deallocateSubstates_proj(sciara); 
+
     finalize(sciara);
 
     return 0;
