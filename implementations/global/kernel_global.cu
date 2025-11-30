@@ -266,10 +266,6 @@ __global__ void computeNewTemperatureAndSolidification_Global(
     double T = st[idx];
     double z = sz[idx];
 
-    sciara->substates->Sz_next[idx] = z;
-    sciara->substates->Sh_next[idx] = h;
-    sciara->substates->ST_next[idx] = T;
-
     if (h > 0.0 && !is_border)
     {
         double numerator = 3.0 * pow(T, 3.0) * pepsilon * psigma * pclock * pcool;
@@ -281,16 +277,26 @@ __global__ void computeNewTemperatureAndSolidification_Global(
 
         if (nT > ptsol) 
         {
+            // No solidification, just cooling
+            sz_next[idx] = z;
+            sh_next[idx] = h;
             st_next[idx] = nT;
         } 
         else 
         {   
+            // Solidification occurs
             sz_next[idx] = z + h;   
             sh_next[idx] = 0.0;     
             st_next[idx] = ptsol;   
             
             mhs[idx] = mhs[idx] + h;
         }
+    }
+    else // No lava or is a border cell, state does not change
+    {
+        sz_next[idx] = z;
+        sh_next[idx] = h;
+        st_next[idx] = T;
     }
 }
 
@@ -325,6 +331,13 @@ __global__ void boundaryConditions_Global(
     {
         sh_next[idx] = 0.0;
         st_next[idx] = 0.0;
+    }
+    else
+    {
+        // Preserve the state of interior cells, which was just updated by the previous kernel
+        // and copied into the main buffers.
+        sh_next[idx] = sh[idx];
+        st_next[idx] = st[idx];
     }
 }
 
