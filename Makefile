@@ -5,8 +5,8 @@
 NVCC      = nvcc
 # Aggiunto -I./implementations/global per trovare gli header dei kernel
 INCLUDES  = -I./src -I./implementations/global
-NVCODE    = -gencode arch=compute_52,code=sm_52 -ftz=true
-NVFLAGS   = -O3 -std=c++14 $(NVCODE) $(INCLUDES)
+NVCODE    = -gencode arch=compute_80,code=sm_80 -ftz=true
+NVFLAGS   = -O0 -std=c++14 $(NVCODE) $(INCLUDES) -g -G
 
 ###########
 # SOURCES #
@@ -46,7 +46,7 @@ default: all
 all: $(EXEC_CUDA)
 
 $(EXEC_CUDA):
-	$(NVCC) $(NVFLAGS) $(ALL_SOURCES) -o $(EXEC_CUDA)
+	$(NVCC) $(NVFLAGS) $(ALL_SOURCES) -g -o $(EXEC_CUDA)
 
 #############
 # EXECUTION #
