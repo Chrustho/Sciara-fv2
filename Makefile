@@ -5,7 +5,7 @@
 NVCC      = nvcc
 # Aggiunto -I./implementations/global per trovare gli header dei kernel
 INCLUDES  = -I./src -I./implementations/global
-NVCODE    = -gencode arch=compute_52,code=sm_52 -ftz=true
+NVCODE    = -gencode arch=compute_80,code=sm_80 -ftz=true
 NVFLAGS   = -O3 -std=c++14 $(NVCODE) $(INCLUDES)
 
 ###########
@@ -22,7 +22,7 @@ SRCS_KERNELS = implementations/global/kernel_global.cu
 SRCS_MAIN = sciara_fv2.cu
 
 # Uniamo tutto in una lista
-ALL_SOURCES = $(SRCS_ROOT) $(SRCS_SRC) $(SRCS_KERNELS) $(SRCS_MAIN)
+ALL_SOURCES = $(SRCS_ROOT) $(SRCS_SRC) $(SRCS_KERNELS) $(SRCS_MAIN) 
 
 ###########
 # DATASET #

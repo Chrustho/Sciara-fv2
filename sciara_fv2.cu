@@ -438,31 +438,58 @@ void printSciaraConfig(Sciara* sciara) {
     printf("===========================================================\n\n");
 }
 
+#include <iostream>
+#include <algorithm> // Necessario per std::swap
+#include <vector>
+
+// Assicurati di includere i tuoi header (Sciara.h, ecc.)
+
+// --- STRUTTURA DI SUPPORTO PER I VENT (Da definire qui o in un header) ---
+
+// --- MAIN ---
 int main(int argc, char **argv)
 {
+    // 1. Allocazione Struct Principale in Unified Memory
+    // È cruciale che la struct "padre" sia accessibile dal device se passiamo il puntatore "sciara" ai kernel
     Sciara *sciara;
-    init(sciara);
+    cudaMallocManaged(&sciara, sizeof(Sciara)); 
+    
+    // Inizializza i puntatori interni a NULL per sicurezza
+    sciara->domain = NULL; sciara->substates = NULL; // ecc...
+    
+    // NOTA: init(sciara) originale allocava sciara con new? 
+    // Se sì, sostituisci con l'allocazione managed sopra e le funzioni di init manuali.
+    // Se init() fa tutto internamente, assicurati che usi cudaMallocManaged.
+    // Qui assumiamo che init() configuri solo i parametri base.
+    init(sciara); 
 
     int max_steps = atoi(argv[MAX_STEPS_ID]);
     loadConfiguration(argv[INPUT_PATH_ID], sciara);
 
+    // Questa funzione deve usare cudaMallocManaged internamente per Sh, Sz, ecc.
     allocateSubstates_proj(sciara);
 
     printSciaraConfig(sciara);
 
+    // Gestione Vicini (Unified Memory)
     int *d_Xi, *d_Xj;
     cudaMallocManaged((void**)&d_Xi, MOORE_NEIGHBORS * sizeof(int));
     cudaMallocManaged((void**)&d_Xj, MOORE_NEIGHBORS * sizeof(int));
     cudaMemcpy(d_Xi, sciara->X->Xi, MOORE_NEIGHBORS * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Xj, sciara->X->Xj, MOORE_NEIGHBORS * sizeof(int), cudaMemcpyHostToDevice);
+    // Aggiorniamo i puntatori nella struct per farli puntare alla versione Managed/Device
+    // (Opzionale se sciara->X->Xi era già managed, ma male non fa)
+    sciara->X->Xi = d_Xi;
+    sciara->X->Xj = d_Xj;
 
     int rows = sciara->domain->rows;
     int cols = sciara->domain->cols;
     
-    dim3 block(32, 32);
+    // Configurazione Grid/Block Ottimizzata (256 thread per blocco)
+    dim3 block(16, 16);
     dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
-    printf("Inizializzati i blocchi\n");
+    printf("Inizializzati i blocchi: Grid(%d, %d)\n", grid.x, grid.y);
 
     double total_current_lava = -1;
     simulationInitialize(sciara);
@@ -470,70 +497,127 @@ int main(int argc, char **argv)
     printf("Inizializzata la simulazione\n");
 
     util::Timer cl_timer;
-
     int reduceInterval = atoi(argv[REDUCE_INTERVL_ID]);
     double thickness_threshold = atof(argv[THICKNESS_THRESHOLD_ID]);
 
-    size_t matrixSize = rows * cols * sizeof(double);
+    // --- PREPARAZIONE BUFFER TEMPORANEI PER I VENT ---
+    // Allocazione buffer per passare i vent alla GPU (senza usare std::vector)
+    int max_vents = sciara->simulation->vent.size();
+    if (max_vents == 0) max_vents = 1; // Evita allocazione 0
+    GPUVent *d_simple_vents;
+    cudaMallocManaged(&d_simple_vents, max_vents * sizeof(GPUVent));
 
+    // Allocazione accumulatore atomico per lava emessa
+    double *d_total_emitted_ptr;
+    cudaMallocManaged(&d_total_emitted_ptr, sizeof(double));
+    *d_total_emitted_ptr = sciara->simulation->total_emitted_lava;
+
+    // --- LOOP DI SIMULAZIONE ---
     while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
            (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
            (total_current_lava == -1 || total_current_lava > thickness_threshold))
     {
+        // Aggiornamento tempo
         sciara->simulation->elapsed_time += sciara->parameters->Pclock;
         sciara->simulation->step++;
 
-       
-        cudaDeviceSynchronize();
-
+        // --------------------------------------------------------
+        // FASE 1: Emit Lava (Gestione Ibrida CPU -> GPU)
+        // --------------------------------------------------------
         
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                emitLava_global(i, j, sciara);
+        // 1a. Calcolo emissioni su CPU (per gestire la complessità temporale di TVent)
+        std::vector<TVent> &host_vents = sciara->simulation->vent;
+        int active_vents_count = 0;
+
+        for(size_t k = 0; k < host_vents.size(); k++) {
+            // Calcola quanto emette QUESTA bocca in QUESTO istante
+            double val = host_vents[k].thickness(
+                            sciara->simulation->elapsed_time, 
+                            sciara->parameters->Pclock, 
+                            sciara->simulation->emission_time, 
+                            sciara->parameters->Pac
+                         );
+            
+            // Se emette, aggiungi alla lista per la GPU
+            if (val > 0.0) {
+                d_simple_vents[active_vents_count].x = host_vents[k].x();
+                d_simple_vents[active_vents_count].y = host_vents[k].y();
+                d_simple_vents[active_vents_count].current_emission = val;
+                active_vents_count++;
             }
         }
 
+        // 1b. Lancia Kernel EmitLava (Solo se ci sono bocche attive)
+        if (active_vents_count > 0) {
+            // Assicurati di usare il kernel con la firma modificata (vedi risposta precedente)
+            emitLava_Global<<<grid, block>>>(sciara, d_simple_vents, active_vents_count, d_total_emitted_ptr);
+            cudaDeviceSynchronize();
+            
+            // Aggiorna variabile CPU per le stampe
+            sciara->simulation->total_emitted_lava = *d_total_emitted_ptr;
+        }
 
-        cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaDeviceSynchronize();
+        // SWAP 1: La lava nuova è in Sh_next (o accumulata su Sh). 
+        // Se emitLava lavora su Sh corrente e scrive su Sh_next, facciamo swap.
+        // Se lavora accumulando, la logica dipende dall'implementazione.
+        // Assumiamo logica standard Sciara: (Read Sh) -> (Write Sh_next)
+        std::swap(sciara->substates->Sh, sciara->substates->Sh_next);
+        std::swap(sciara->substates->ST, sciara->substates->ST_next);
 
+        // --------------------------------------------------------
+        // FASE 2: Compute Outflows
+        // --------------------------------------------------------
         computeOutflows_Global<<<grid, block>>>(sciara);
+        cudaDeviceSynchronize();
+        // Nessuno swap qui (scrive su Mf)
 
+        // --------------------------------------------------------
+        // FASE 3: Mass Balance
+        // --------------------------------------------------------
         massBalance_Global<<<grid, block>>>(sciara);
-
-        cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
         cudaDeviceSynchronize();
 
+        // SWAP 2
+        std::swap(sciara->substates->Sh, sciara->substates->Sh_next);
+        std::swap(sciara->substates->ST, sciara->substates->ST_next);
+
+        // --------------------------------------------------------
+        // FASE 4: Temperature & Solidification
+        // --------------------------------------------------------
         computeNewTemperatureAndSolidification_Global<<<grid, block>>>(sciara);
-
-        cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
         cudaDeviceSynchronize();
 
+        // SWAP 3 (Tutto: Sz, Sh, ST)
+        std::swap(sciara->substates->Sz, sciara->substates->Sz_next);
+        std::swap(sciara->substates->Sh, sciara->substates->Sh_next);
+        std::swap(sciara->substates->ST, sciara->substates->ST_next);
 
+        // --------------------------------------------------------
+        // FASE 5: Boundary Conditions
+        // --------------------------------------------------------
         boundaryConditions_Global<<<grid, block>>>(sciara);
-
-        cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, matrixSize, cudaMemcpyDeviceToDevice);
-        cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, matrixSize, cudaMemcpyDeviceToDevice);
         cudaDeviceSynchronize();
 
+        // SWAP 4
+        std::swap(sciara->substates->Sh, sciara->substates->Sh_next);
+        std::swap(sciara->substates->ST, sciara->substates->ST_next);
+
+        // --------------------------------------------------------
+        // Riduzione (Statistiche)
+        // --------------------------------------------------------
         if (sciara->simulation->step % reduceInterval == 0)
         {
-          printf("valore lava pre step %d, %lf\n", sciara->simulation->step, total_current_lava);
-          cudaDeviceSynchronize();
-          total_current_lava = reduceAdd(rows, cols, sciara->substates->Sh);
-          printf("Fatta reduceAdd a step %d, %lf\n", sciara->simulation->step,total_current_lava);
+            // printf("Calcolo riduzione step %d...\n", sciara->simulation->step);
+            // Assumiamo che reduceAdd sia compatibile con puntatori Managed
+            total_current_lava = reduceAdd(rows, cols, sciara->substates->Sh);
+            printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
         }
     }
-
 
     cudaDeviceSynchronize();
     
     double cl_time = static_cast<double>(cl_timer.getTimeMilliseconds()) / 1000.0;
-    printf("Step %d\n", sciara->simulation->step);
+    printf("Final Step %d\n", sciara->simulation->step);
     printf("Elapsed time [s]: %lf\n", cl_time);
     printf("Emitted lava [m]: %lf\n", sciara->simulation->total_emitted_lava);
     printf("Current lava [m]: %lf\n", total_current_lava);
@@ -542,10 +626,16 @@ int main(int argc, char **argv)
     saveConfiguration(argv[OUTPUT_PATH_ID], sciara);
 
     printf("Releasing memory...\n");
-    cudaFree(d_Xi);
-    cudaFree(d_Xj);
-    deallocateSubstates_proj(sciara); 
-    finalize(sciara);
+    
+    // Libera memoria custom allocata nel main
+    //cudaFree(d_Xi);
+    //cudaFree(d_Xj);
+    //cudaFree(d_simple_vents);
+    //cudaFree(d_total_emitted_ptr);
+
+    //deallocateSubstates_proj(sciara); 
+    //finalize(sciara);
+    // IMPORTANTE: se abbiamo allocato sciara con cudaMallocManaged, liberiamolo
 
     return 0;
 }

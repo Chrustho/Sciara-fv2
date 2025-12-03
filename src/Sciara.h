@@ -39,6 +39,12 @@ typedef struct
   int* Xj;
 } NeighsRelativeCoords;
 
+struct GPUVent {
+    int x;
+    int y;
+    double current_emission; 
+};
+
 typedef struct
 {
 	double* Sz;		    //Altitude

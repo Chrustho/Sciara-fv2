@@ -4,6 +4,12 @@
 #include "../../src/Sciara.h"
 
 
+__global__ void emitLava_Global(
+    Sciara *sciara, 
+    GPUVent *d_vents,      // Usiamo la struct semplificata
+    int num_vents, 
+    double *d_total_emitted_lava
+);
 __global__ void computeOutflows_Global(
     Sciara *sciara);
 
