@@ -433,6 +433,8 @@ int main(int argc, char **argv)
   size_t sharedMemSize_outflows = (BLOCK_DIM * BLOCK_DIM * 3) * sizeof(double);
   size_t sharedMemSize_massBalance = (BLOCK_DIM * BLOCK_DIM) * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
 
+  size_t sharedMem_halo_outflows = (BLOCK_DIM + 2) * (BLOCK_DIM+2) * 3 * sizeof(double);
+
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
       (total_current_lava == -1 || total_current_lava > thickness_threshold))
