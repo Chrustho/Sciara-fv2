@@ -488,13 +488,10 @@ int main(int argc, char **argv)
 
   printf("Releasing memory...\n");
 
-  //cudaFree(d_Xi);
-  //cudaFree(d_Xj);
-  //cudaFree(d_simple_vents);
-  //cudaFree(d_total_emitted_ptr);
+  cudaFree(d_Xi);
+  cudaFree(d_Xj);
 
-  //deallocateSubstates_proj(sciara); 
-  //finalize(sciara);
+  finalize(sciara);
 
   return 0;
 }
