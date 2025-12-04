@@ -273,11 +273,11 @@ __global__ void massBalance_Tiled(
 }
 
 
-__global__ void computeNewTemperatureAndSolidification_Tiled(
-    Sciara *sciara         
-);
+__global__ void computeNewTemperatureAndSolidification_Tiled();
+// In questo caso il kernel non beneficia del tiling perchè accede solo alla propria cella 
+//e non a quella dei vicini
 
-__global__ void boundaryConditions_Tiled(
-    Sciara *sciara     
-);
+__global__ void boundaryConditions_Tiled();
+// In questo caso il kernel non beneficia del tiling perchè accede solo alla propria cella 
+//e non a quella dei vicini
 
