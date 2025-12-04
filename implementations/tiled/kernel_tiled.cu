@@ -4,10 +4,7 @@
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled/kernel_tiled.cuh"
 
-void emitLava(
-    int i,
-    int j,
-    Sciara *sciara);
+
 
 __global__ void computeOutflows_Tiled(
     Sciara *sciara, const unsigned int tileX, const int tileY){
@@ -30,7 +27,7 @@ __global__ void computeOutflows_Tiled(
     double _c=sciara->parameters->c;
     double _d=sciara->parameters->d;
 
-    //taglia della shared dim(sz)*3 (sto considerando Sz,Sh,st)
+    //taglia della shared dim(sz)*2 (sto considerando Sh,st)
     //rimane mf fuori
 
     extern __shared__ double shared_mem[];
@@ -79,5 +76,3 @@ __global__ void boundaryConditions_Tiled(
     Sciara *sciara     
 );
 
-__global__ void reduceAdd_Kernel(
-    int n, const double *buffer, double *global_result);

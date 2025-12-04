@@ -3,10 +3,6 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 
-void emitLava(
-    int i,
-    int j,
-    Sciara *sciara);
 
 __global__ void computeOutflows_Tiled(
     Sciara *sciara);
@@ -23,8 +19,5 @@ __global__ void computeNewTemperatureAndSolidification_Tiled(
 __global__ void boundaryConditions_Tiled(
     Sciara *sciara     
 );
-
-__global__ void reduceAdd_Kernel(
-    int n, const double *buffer, double *global_result);
 
 

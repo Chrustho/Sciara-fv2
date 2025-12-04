@@ -1,4 +1,5 @@
 main
 *.o
 *.ncu-rep
+sciara_cuda
 
