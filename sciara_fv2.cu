@@ -6,6 +6,7 @@
 #include "src/util.hpp"
 #include <cuda_runtime.h>
 #include "implementations/global/kernel_global.cuh"
+#include "implementations/tiled/kernel_tiled.cuh"
 
 // ----------------------------------------------------------------------------
 // I/O parameters used to index argv[]
@@ -427,6 +428,9 @@ int main(int argc, char **argv)
   size_t sizeBuffer= rows*cols*sizeof(double);
 
 
+  size_t sharedMemSize = (20 * 20 * 3) * sizeof(double);
+
+
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
       (total_current_lava == -1 || total_current_lava > thickness_threshold))
@@ -441,7 +445,8 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
 
-    computeOutflows_Global<<<grid, block>>>(sciara);
+
+    computeOutflows_Tiled<<<grid, block, sharedMemSize>>>(sciara, 20, 20);
     cudaDeviceSynchronize();
 
     massBalance_Global<<<grid, block>>>(sciara);
