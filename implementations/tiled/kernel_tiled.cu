@@ -10,17 +10,14 @@ __constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neigh
 
 __global__ void computeOutflows_Tiled(
     Sciara *sciara, const unsigned int tileX, const int tileY){
-  // Parametri del dominio
   int rows= sciara->domain->rows;
   int cols= sciara->domain->cols;
 
-  // Buffers
   double *sh=sciara->substates->Sh;
   double *st=sciara->substates->ST;
   double *sz= sciara->substates->Sz;
   double *mf= sciara->substates->Mf;
 
-  // a, b, c, d
   double _a= sciara->parameters->a;
   double _b=sciara->parameters->b;
   double _c=sciara->parameters->c;
@@ -28,8 +25,6 @@ __global__ void computeOutflows_Tiled(
   double pc=sciara->parameters->Pc;
 
   int blockSize = blockDim.x * blockDim.y;
-  //taglia della shared dim(sz)*2 (sto considerando Sh,st)
-  //rimane mf fuori
 
   extern __shared__ double shared_mem[];
 
@@ -53,8 +48,10 @@ __global__ void computeOutflows_Tiled(
     sh_s[tid] = sh[idx];
     st_s[tid] = st[idx];
     sz_s[tid] = sz[idx];
-  } 
+  }
   __syncthreads();
+
+  if (i >= rows || j >= cols) return;
 
 
   /* COMPUTAZIONE */
@@ -87,24 +84,24 @@ __global__ void computeOutflows_Tiled(
 
     if (is_valid) {
       int idx_k = ni * cols + nj;
-      int idx_k_s = trn * tileX + tcn;
+      bool in_shared = (trn >= 0 && trn < (int)blockDim.y && 
+                              tcn >= 0 && tcn < (int)blockDim.x);
+            
       double sz_k;
-
-      if (idx_k_s >= 0 && idx_k_s < blockSize)
-      {
-        sz_k=sz_s[idx_k_s];
-        h[k]=sh_s[idx_k_s];
-
+      if (in_shared) {
+          int idx_k_s = trn * blockDim.x + tcn;
+          sz_k = sz_s[idx_k_s];
+          h[k] = sh_s[idx_k_s];
       } else {
-        sz_k=sz[idx_k];
-        h[k]=sh[idx_k];
+          sz_k = sz[idx_k];
+          h[k] = sh[idx_k];
       }
-      
+
       if (k < VON_NEUMANN_NEIGHBORS)
         z[k] = sz_k;
       else
         z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0); 
-    } 
+    }
 
     w[k] = pc;
     Pr[k] = rr;

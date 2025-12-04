@@ -411,7 +411,7 @@ int main(int argc, char **argv)
   int rows = sciara->domain->rows;
   int cols = sciara->domain->cols;
 
-  dim3 block(20, 20);
+  dim3 block(16, 16);
   dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
   printf("Inizializzati i blocchi: Grid(%d, %d)\n", grid.x, grid.y);
@@ -428,7 +428,7 @@ int main(int argc, char **argv)
   size_t sizeBuffer= rows*cols*sizeof(double);
 
 
-  size_t sharedMemSize = (20 * 20 * 3) * sizeof(double);
+  size_t sharedMemSize = (16 * 16 * 3) * sizeof(double);
 
 
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
@@ -446,7 +446,7 @@ int main(int argc, char **argv)
 
 
 
-    computeOutflows_Tiled<<<grid, block, sharedMemSize>>>(sciara, 20, 20);
+    computeOutflows_Tiled<<<grid, block,sharedMemSize>>>(sciara, 16, 16);
     cudaDeviceSynchronize();
 
     massBalance_Global<<<grid, block>>>(sciara);
