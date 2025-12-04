@@ -3,52 +3,6 @@
 #include "kernel_global.cuh"
 
 
-__global__ void emitLava_Global(
-    Sciara *sciara, 
-    GPUVent *d_vents,      // Usiamo la struct semplificata
-    int num_vents, 
-    double *d_total_emitted_lava
-)
-{
-    int rows = sciara->domain->rows;
-    int cols = sciara->domain->cols;
-    
-    int j = blockIdx.x * blockDim.x + threadIdx.x;
-    int i = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (i >= rows || j >= cols) return;
-
-    // Buffer
-    double *sh = sciara->substates->Sh;
-    double *st = sciara->substates->ST;
-    double *sh_next = sciara->substates->Sh_next;
-    double *st_next = sciara->substates->ST_next;
-    double ptvent = sciara->parameters->PTvent;
-
-    int idx = i * cols + j;
-
-    for (int k = 0; k < num_vents; k++)
-    {
-        // Leggiamo i dati dalla struct semplice GPUVent
-        if (i == d_vents[k].y && j == d_vents[k].x)
-        {
-            double emitted = d_vents[k].current_emission;
-
-            if (emitted > 0.0) 
-            {
-                //sh_next[idx] = sh[idx] + emitted; // Aggiunge alla lava esistente
-                //st_next[idx] = ptvent;            // Imposta temperatura bocca
-                //atomicAdd(d_total_emitted_lava, emitted);
-              sh[idx] += emitted; 
-
-              // Aggiorniamo la temperatura attuale
-              st[idx] = ptvent;            
-
-              atomicAdd(d_total_emitted_lava, emitted);
-            }
-        }
-    }
-}
 
 
 
