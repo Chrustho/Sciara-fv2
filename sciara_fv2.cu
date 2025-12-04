@@ -428,8 +428,8 @@ int main(int argc, char **argv)
   size_t sizeBuffer= rows*cols*sizeof(double);
 
 
-  size_t sharedMemSize = (16 * 16 * 3) * sizeof(double);
-
+  size_t sharedMemSize_outflows = (16 * 16 * 3) * sizeof(double);
+  size_t sharedMemSize_massBalance = (16 * 16) * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
 
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
@@ -446,10 +446,10 @@ int main(int argc, char **argv)
 
 
 
-    computeOutflows_Tiled<<<grid, block,sharedMemSize>>>(sciara, 16, 16);
+    computeOutflows_Tiled<<<grid, block,sharedMemSize_outflows>>>(sciara, 16, 16);
     cudaDeviceSynchronize();
 
-    massBalance_Global<<<grid, block>>>(sciara);
+    massBalance_Tiled<<<grid, block, sharedMemSize_massBalance>>>(sciara, 16, 16);
     cudaDeviceSynchronize();
 
   

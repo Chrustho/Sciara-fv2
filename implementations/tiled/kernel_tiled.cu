@@ -9,7 +9,7 @@ __constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neigh
 
 
 __global__ void computeOutflows_Tiled(
-    Sciara *sciara, const unsigned int tileX, const int tileY){
+    Sciara *sciara, const unsigned int tileX, const unsigned int tileY){
   int rows= sciara->domain->rows;
   int cols= sciara->domain->cols;
 
@@ -178,7 +178,99 @@ __global__ void computeOutflows_Tiled(
 
 
 __global__ void massBalance_Tiled(
-    Sciara *sciara);  
+    Sciara *sciara, const unsigned int tileX, const unsigned int tileY) {
+
+    int rows = sciara->domain->rows;
+    int cols = sciara->domain->cols;
+
+    double *sh = sciara->substates->Sh;
+    double *sh_next = sciara->substates->Sh_next;
+    double *st = sciara->substates->ST;
+    double *st_next = sciara->substates->ST_next;
+    double *mf = sciara->substates->Mf;
+
+    int blockSize = blockDim.x * blockDim.y;
+
+    extern __shared__ double shared_mem[];
+    double *sh_s = shared_mem;
+    double *st_s = shared_mem + blockSize;
+    double *mf_s = shared_mem + blockSize * 2;
+
+    int tc = threadIdx.x;
+    int tr = threadIdx.y;
+
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+    int i = blockIdx.y * blockDim.y + threadIdx.y;
+
+    int idx = i * cols + j;
+    int tid = tr * blockDim.x + tc;
+
+    int layer_size = rows * cols;
+
+    
+    if (i < rows && j < cols) {
+        sh_s[tid] = sh[idx];
+        st_s[tid] = st[idx];
+        
+        for (int layer = 0; layer < NUMBER_OF_OUTFLOWS; layer++) {
+            mf_s[layer * blockSize + tid] = mf[layer * layer_size + idx];
+        }
+    }
+    __syncthreads();
+
+
+    if (i >= rows || j >= cols) return;
+
+    const int inflowsIndices[NUMBER_OF_OUTFLOWS] = {3, 2, 1, 0, 6, 7, 4, 5};
+
+    double initial_h = sh_s[tid];
+    double initial_t = st_s[tid];
+
+    double h_next = initial_h;
+    double t_next = initial_h * initial_t;
+
+    for (int n = 1; n < MOORE_NEIGHBORS; n++)
+    {
+        int ni = i + _Xi[n];
+        int nj = j + _Xj[n];
+
+        if (ni < 0 || ni >= rows || nj < 0 || nj >= cols)continue;
+
+        int n_idx = ni * cols + nj;
+
+        int out_layer = n - 1;
+        double outFlow = mf_s[out_layer * blockSize + tid];
+
+        int in_layer = inflowsIndices[n - 1];
+        
+        int trn = tr + _Xi[n];
+        int tcn = tc + _Xj[n];
+        
+        bool in_shared = (trn >= 0 && trn < (int)blockDim.y && 
+                          tcn >= 0 && tcn < (int)blockDim.x);
+
+        double inFlow;
+        double neigh_t;
+
+        if (in_shared) {
+            int tid_neighbor = trn * blockDim.x + tcn;
+            inFlow = mf_s[in_layer * blockSize + tid_neighbor];
+            neigh_t = st_s[tid_neighbor];
+        } else {
+            inFlow = mf[in_layer * layer_size + n_idx];
+            neigh_t = st[n_idx];
+        }
+
+        h_next += (inFlow - outFlow);
+        t_next += (inFlow * neigh_t - outFlow * initial_t);
+    }
+
+    if (h_next > 0) {
+        t_next /= h_next;
+        st_next[idx] = t_next;
+        sh_next[idx] = h_next;
+    }
+}
 
 
 __global__ void computeNewTemperatureAndSolidification_Tiled(
