@@ -3,7 +3,7 @@
 #include "kernel_global.cuh"
 
 
-__global__ void __launch_bounds__(1024) computeOutflows_Global(
+__global__ void  computeOutflows_Global(
     Sciara *sciara)
 {
   // Parametri del dominio
