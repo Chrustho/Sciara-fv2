@@ -2,10 +2,6 @@
 #include "../../src/Sciara.h"
 #include "kernel_global.cuh"
 
-
-
-
-
 __global__ void computeOutflows_Global(
     Sciara *sciara)
 {

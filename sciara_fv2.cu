@@ -25,6 +25,8 @@
 #define BUF_SET(M, rows, columns, n, i, j, value) ( (M)[( ((n)*(rows)*(columns)) + ((i)*(columns)) + (j) )] = (value) )
 #define BUF_GET(M, rows, columns, n, i, j) ( M[( ((n)*(rows)*(columns)) + ((i)*(columns)) + (j) )] )
 
+
+#define BLOCK_DIM 16
 // ----------------------------------------------------------------------------
 // computing kernels, aka elementary processes in the XCA terminology
 // ----------------------------------------------------------------------------
@@ -411,7 +413,7 @@ int main(int argc, char **argv)
   int rows = sciara->domain->rows;
   int cols = sciara->domain->cols;
 
-  dim3 block(16, 16);
+  dim3 block(BLOCK_DIM, BLOCK_DIM);
   dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
   printf("Inizializzati i blocchi: Grid(%d, %d)\n", grid.x, grid.y);
@@ -428,8 +430,8 @@ int main(int argc, char **argv)
   size_t sizeBuffer= rows*cols*sizeof(double);
 
 
-  size_t sharedMemSize_outflows = (16 * 16 * 3) * sizeof(double);
-  size_t sharedMemSize_massBalance = (16 * 16) * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
+  size_t sharedMemSize_outflows = (BLOCK_DIM * BLOCK_DIM * 3) * sizeof(double);
+  size_t sharedMemSize_massBalance = (BLOCK_DIM * BLOCK_DIM) * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
 
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
