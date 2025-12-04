@@ -66,7 +66,7 @@ void emitLava_global(
     double pclock = sciara->parameters->Pclock;
     unsigned int em_time= sciara->simulation->emission_time; 
     double pac= sciara->parameters->Pac;
-    double total_em_lava= sciara->simulation->total_emitted_lava;
+    double &total_em_lava= sciara->simulation->total_emitted_lava;
 
     // Buffers
     double *sh=sciara->substates->Sh;
@@ -440,6 +440,7 @@ int main(int argc, char **argv)
 
 
     emitLava_global(sciara);
+    cudaDeviceSynchronize();
 
 
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
