@@ -27,7 +27,7 @@
 #define BUF_GET(M, rows, columns, n, i, j) ( M[( ((n)*(rows)*(columns)) + ((i)*(columns)) + (j) )] )
 
 
-#define BLOCK_DIM 16
+#define BLOCK_DIM 32
 // ----------------------------------------------------------------------------
 // computing kernels, aka elementary processes in the XCA terminology
 // ----------------------------------------------------------------------------
@@ -455,11 +455,15 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-    computeOutflows_Tiled_wH<<<grid, block,sharedMem_halo_outflows>>>(sciara);
+    computeOutflows_Global<<<grid, block>>>(sciara);
     //computeOutflows_Tiled<<<grid,block,sharedMemSize_outflows>>>(sciara, BLOCK_DIM, BLOCK_DIM);
     cudaDeviceSynchronize();
+    cudaError_t err =cudaGetLastError();
+    if(err != cudaSuccess) {
+      printf("CRITICO:  %s\n", cudaGetErrorString(err));
+    }
 
-    massBalance_Tiled_wH<<<grid, block, sharedMem_halo_massBalance>>>(sciara);
+    massBalance_Global<<<grid, block>>>(sciara);
     cudaDeviceSynchronize();
 
   
