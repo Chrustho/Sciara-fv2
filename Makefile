@@ -19,7 +19,7 @@ SRCS_SRC  = $(wildcard src/*.cpp)
 # 3. File CUDA dei kernel (FONDAMENTALE: mancava questo!)
 SRCS_KERNELS = implementations/global/kernel_global.cu
 # 4. File CUDA principale
-SRCS_MAIN = sciara_fv2.cu
+SRCS_MAIN = sciara_fv2.cu Sciara.cu
 
 # Uniamo tutto in una lista
 ALL_SOURCES = $(SRCS_ROOT) $(SRCS_SRC) $(SRCS_KERNELS) $(SRCS_MAIN) 

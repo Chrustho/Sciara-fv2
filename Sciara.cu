@@ -16,6 +16,25 @@ void allocateSubstates(Sciara *sciara)
 	sciara->substates->Mb       = new (std::nothrow)   bool[sciara->domain->rows*sciara->domain->cols];
 	sciara->substates->Mhs      = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
 }
+void allocateSubstatesCUDA(Sciara *sciara) {
+    int size = sciara->domain->rows * sciara->domain->cols * sizeof(double);
+    
+    // Sostituisci i 'new double[]' con questo:
+    cudaMallocManaged(&(sciara->substates->Sz), size);
+    cudaMallocManaged(&(sciara->substates->Sz_next), size);
+    
+    cudaMallocManaged(&(sciara->substates->Sh), size);
+    cudaMallocManaged(&(sciara->substates->Sh_next), size);
+    
+    cudaMallocManaged(&(sciara->substates->ST), size);
+    cudaMallocManaged(&(sciara->substates->ST_next), size);
+    
+    // Mf è più grande (8 layers)
+    cudaMallocManaged(&(sciara->substates->Mf), size * 8); 
+    
+    cudaMallocManaged(&(sciara->substates->Mb), sciara->domain->rows * sciara->domain->cols * sizeof(bool));
+    cudaMallocManaged(&(sciara->substates->Mhs), size);
+}
 
 
 
@@ -82,6 +101,28 @@ void simulationInitialize(Sciara* sciara)
 
 int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; // Xj: Moore neighborhood row coordinates (see below)
 int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neighborhood col coordinates (see below)
+void initCUDA(Sciara*& sciara)
+{
+    // Allocazione della struct principale in Unified Memory
+    cudaMallocManaged(&sciara, sizeof(Sciara));
+
+    // Allocazione delle sottostrutture in Unified Memory
+    cudaMallocManaged(&(sciara->domain), sizeof(Domain));
+    
+    // Allocazione coordinate vicini
+    cudaMallocManaged(&(sciara->X), sizeof(NeighsRelativeCoords));
+    cudaMallocManaged(&(sciara->X->Xi), MOORE_NEIGHBORS * sizeof(int));
+    cudaMallocManaged(&(sciara->X->Xj), MOORE_NEIGHBORS * sizeof(int));
+    
+    for (int n=0; n<MOORE_NEIGHBORS; n++) {
+        sciara->X->Xi[n] = _Xi[n]; 
+        sciara->X->Xj[n] = _Xj[n];
+    }
+
+    cudaMallocManaged(&(sciara->substates), sizeof(Substates));
+    cudaMallocManaged(&(sciara->parameters), sizeof(Parameters));
+    sciara->simulation = new Simulation; 
+}
 void init(Sciara*& sciara)
 {
   sciara = new Sciara;
@@ -114,6 +155,54 @@ void finalize(Sciara*& sciara)
   delete sciara;
   sciara = NULL;
 }
+//void allocateSubstatesCUDA(Sciara *sciara)
+//{
+//    size_t size_double = sciara->domain->rows * sciara->domain->cols * sizeof(double);
+//    size_t size_bool = sciara->domain->rows * sciara->domain->cols * sizeof(bool);
+//    size_t size_Mf = size_double * NUMBER_OF_OUTFLOWS;
+//
+//    cudaMallocManaged((void **)&sciara->substates->Sz, size_double);
+//    cudaMallocManaged((void **)&sciara->substates->Sz_next, size_double);
+//
+//    cudaMallocManaged((void **)&sciara->substates->Sh, size_double);
+//    cudaMallocManaged((void **)&sciara->substates->Sh_next, size_double);
+//
+//    cudaMallocManaged((void **)&sciara->substates->ST, size_double);
+//    cudaMallocManaged((void **)&sciara->substates->ST_next, size_double);
+//
+//    cudaMallocManaged((void **)&sciara->substates->Mf, size_Mf);
+//    cudaMallocManaged((void **)&sciara->substates->Mb, size_bool);
+//    cudaMallocManaged((void **)&sciara->substates->Mhs, size_double);
+//
+//    cudaDeviceSynchronize();
+//}
+//
+//void deallocateSubstatesCUDA(Sciara *sciara)
+//{
+//    if (sciara->substates->Sz)
+//        cudaFree(sciara->substates->Sz);
+//    if (sciara->substates->Sz_next)
+//        cudaFree(sciara->substates->Sz_next);
+//
+//    if (sciara->substates->Sh)
+//        cudaFree(sciara->substates->Sh);
+//    if (sciara->substates->Sh_next)
+//        cudaFree(sciara->substates->Sh_next);
+//
+//    if (sciara->substates->ST)
+//        cudaFree(sciara->substates->ST);
+//    if (sciara->substates->ST_next)
+//        cudaFree(sciara->substates->ST_next);
+//
+//    if (sciara->substates->Mf)
+//        cudaFree(sciara->substates->Mf);
+//    if (sciara->substates->Mb)
+//        cudaFree(sciara->substates->Mb);
+//    if (sciara->substates->Mhs)
+//        cudaFree(sciara->substates->Mhs);
+//
+//    cudaDeviceSynchronize();
+//}
 
 void makeBorder(Sciara *sciara) 
 {
