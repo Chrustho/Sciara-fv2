@@ -7,7 +7,6 @@
 void allocateSubstates(Sciara *sciara) {
     int size = sciara->domain->rows * sciara->domain->cols * sizeof(double);
     
-    // Sostituisci i 'new double[]' con questo:
     cudaMallocManaged(&(sciara->substates->Sz), size);
     cudaMallocManaged(&(sciara->substates->Sz_next), size);
     
@@ -17,7 +16,6 @@ void allocateSubstates(Sciara *sciara) {
     cudaMallocManaged(&(sciara->substates->ST), size);
     cudaMallocManaged(&(sciara->substates->ST_next), size);
     
-    // Mf è più grande (8 layers)
     cudaMallocManaged(&(sciara->substates->Mf), size * 8); 
     
     cudaMallocManaged(&(sciara->substates->Mb), sciara->domain->rows * sciara->domain->cols * sizeof(bool));
@@ -91,13 +89,9 @@ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; // Xj: Moore neighborhood row c
 int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neighborhood col coordinates (see below)
 void initCUDA(Sciara*& sciara)
 {
-    // Allocazione della struct principale in Unified Memory
     cudaMallocManaged(&sciara, sizeof(Sciara));
-
-    // Allocazione delle sottostrutture in Unified Memory
     cudaMallocManaged(&(sciara->domain), sizeof(Domain));
     
-    // Allocazione coordinate vicini
     cudaMallocManaged(&(sciara->X), sizeof(NeighsRelativeCoords));
     cudaMallocManaged(&(sciara->X->Xi), MOORE_NEIGHBORS * sizeof(int));
     cudaMallocManaged(&(sciara->X->Xj), MOORE_NEIGHBORS * sizeof(int));

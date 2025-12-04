@@ -361,10 +361,8 @@ void printSciaraConfig(Sciara* sciara) {
         printf("  Refreshing Step:        %d\n", sciara->simulation->refreshing_step);
         printf("  Thickness Vis. Thresh:  %lf\n", sciara->simulation->thickness_visual_threshold);
         
-        // Vents Info
         printf("  Number of Vents:        %lu\n", sciara->simulation->vent.size());
         for(size_t i=0; i < sciara->simulation->vent.size(); i++) {
-            // Assumo che TVent abbia i metodi x() e y(). Se da errore, commenta queste righe.
             printf("    Vent #%lu -> X: %d, Y: %d\n", i, sciara->simulation->vent[i].x(), sciara->simulation->vent[i].y());
         }
 
@@ -374,8 +372,6 @@ void printSciaraConfig(Sciara* sciara) {
         printf("\n[SIMULATION] is NULL\n");
     }
 
-    // --- SUBSTATES (Controllo allocazione) ---
-    // Nota: A questo punto i buffer potrebbero non essere ancora allocati se chiami la stampa prima di allocateSubstates_proj
     if (sciara->substates) {
         printf("\n[SUBSTATES POINTERS] (Check if NULL)\n");
         printf("  Sz  (Altitude): %p\n", (void*)sciara->substates->Sz);
