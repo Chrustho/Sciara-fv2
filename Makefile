@@ -5,7 +5,7 @@
 NVCC      = nvcc
 # Aggiunto -I./implementations/global per trovare gli header dei kernel
 INCLUDES  = -I./src -I./implementations/global
-NVCODE    = -gencode arch=compute_80,code=sm_80 -ftz=true
+NVCODE    = -gencode arch=compute_52,code=sm_52 -ftz=true
 NVFLAGS   = -O2 -std=c++14 $(NVCODE) $(INCLUDES)
 
 ###########
@@ -17,7 +17,7 @@ SRCS_ROOT = $(wildcard *.cpp)
 # 2. File C++ nella cartella src
 SRCS_SRC  = $(wildcard src/*.cpp)
 # 3. File CUDA dei kernel (FONDAMENTALE: mancava questo!)
-SRCS_KERNELS = implementations/global/kernel_global.cu implementations/tiled/kernel_tiled.cu
+SRCS_KERNELS = implementations/global/kernel_global.cu implementations/tiled/kernel_tiled.cu implementations/tiled_with_halos/kernel_tiled_with_halo.cu
 # 4. File CUDA principale
 SRCS_MAIN = sciara_fv2.cu Sciara.cu
 

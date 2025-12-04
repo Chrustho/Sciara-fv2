@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 #include "implementations/global/kernel_global.cuh"
 #include "implementations/tiled/kernel_tiled.cuh"
+#include "implementations/tiled_with_halos/kernel_tiled_with_halo.cuh"
 
 // ----------------------------------------------------------------------------
 // I/O parameters used to index argv[]
@@ -450,10 +451,11 @@ int main(int argc, char **argv)
 
 
 
-    computeOutflows_Tiled<<<grid, block,sharedMemSize_outflows>>>(sciara, 16, 16);
+    computeOutflows_Tiled_wH<<<grid, block,sharedMem_halo_outflows>>>(sciara, BLOCK_DIM, BLOCK_DIM);
+    //computeOutflows_Tiled<<<grid,block,sharedMemSize_outflows>>>(sciara, BLOCK_DIM, BLOCK_DIM);
     cudaDeviceSynchronize();
 
-    massBalance_Tiled<<<grid, block, sharedMemSize_massBalance>>>(sciara, 16, 16);
+    massBalance_Tiled<<<grid, block, sharedMemSize_massBalance>>>(sciara, BLOCK_DIM, BLOCK_DIM);
     cudaDeviceSynchronize();
 
   
