@@ -415,7 +415,7 @@ int mainCUDA(int argc, char **argv)
   loadConfiguration(argv[INPUT_PATH_ID], sciara);
 
   // Questa funzione deve usare cudaMallocManaged internamente per Sh, Sz, ecc.
-  allocateSubstatesCUDA(sciara);
+  //allocateSubstatesCUDA(sciara);
 
   printSciaraConfig(sciara);
 
@@ -674,8 +674,10 @@ int main(int argc, char **argv)
       // Aggiorna variabile CPU per le stampe
       sciara->simulation->total_emitted_lava = *d_total_emitted_ptr;
     
-      std::swap(sciara->substates->Sh, sciara->substates->Sh_next);
-      std::swap(sciara->substates->ST, sciara->substates->ST_next);
+      //std::swap(sciara->substates->Sh, sciara->substates->Sh_next);
+      //std::swap(sciara->substates->ST, sciara->substates->ST_next);
+     // memcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeof(double) * sciara->domain->rows * sciara->domain->cols);
+     // memcpy(sciara->substates->ST, sciara->substates->ST_next, sizeof(double) * sciara->domain->rows * sciara->domain->cols);
 
     // memcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeof(double) * sciara->domain->rows * sciara->domain->cols);
     //memcpy(sciara->substates->ST, sciara->substates->ST_next, sizeof(double) * sciara->domain->rows * sciara->domain->cols);

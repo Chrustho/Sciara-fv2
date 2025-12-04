@@ -3,20 +3,20 @@
 #include <cuda_runtime.h>
 
 
-void allocateSubstates(Sciara *sciara)
-{
-	sciara->substates->Sz       = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
-  sciara->substates->Sz_next  = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
-	sciara->substates->Sh       = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
-  sciara->substates->Sh_next  = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
-	sciara->substates->ST       = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
-  sciara->substates->ST_next  = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
-	sciara->substates->Mf       = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols*NUMBER_OF_OUTFLOWS];
-//sciara->substates->Mv       = new (std::nothrow)    int[sciara->domain->rows*sciara->domain->cols];
-	sciara->substates->Mb       = new (std::nothrow)   bool[sciara->domain->rows*sciara->domain->cols];
-	sciara->substates->Mhs      = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
-}
-void allocateSubstatesCUDA(Sciara *sciara) {
+//void allocateSubstates(Sciara *sciara)
+//{
+//	sciara->substates->Sz       = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
+//  sciara->substates->Sz_next  = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
+//	sciara->substates->Sh       = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
+//  sciara->substates->Sh_next  = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
+//	sciara->substates->ST       = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
+//  sciara->substates->ST_next  = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
+//	sciara->substates->Mf       = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols*NUMBER_OF_OUTFLOWS];
+////sciara->substates->Mv       = new (std::nothrow)    int[sciara->domain->rows*sciara->domain->cols];
+//	sciara->substates->Mb       = new (std::nothrow)   bool[sciara->domain->rows*sciara->domain->cols];
+//	sciara->substates->Mhs      = new (std::nothrow) double[sciara->domain->rows*sciara->domain->cols];
+//}
+void allocateSubstates(Sciara *sciara) {
     int size = sciara->domain->rows * sciara->domain->cols * sizeof(double);
     
     // Sostituisci i 'new double[]' con questo:
@@ -120,6 +120,7 @@ void initCUDA(Sciara*& sciara)
     }
 
     cudaMallocManaged(&(sciara->substates), sizeof(Substates));
+    allocateSubstates(sciara);
     cudaMallocManaged(&(sciara->parameters), sizeof(Parameters));
     sciara->simulation = new Simulation; 
 }
