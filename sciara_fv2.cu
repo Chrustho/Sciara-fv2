@@ -430,11 +430,17 @@ int main(int argc, char **argv)
 
   size_t sizeBuffer= rows*cols*sizeof(double);
 
+  int HALO = 1;
+  int sharedWidth = block.x + 2 * HALO;   // 18
+  int sharedHeight = block.y + 2 * HALO;  // 18
+  int sharedSize = sharedWidth * sharedHeight;  // 324
+
 
   size_t sharedMemSize_outflows = (BLOCK_DIM * BLOCK_DIM * 3) * sizeof(double);
   size_t sharedMemSize_massBalance = (BLOCK_DIM * BLOCK_DIM) * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
 
-  size_t sharedMem_halo_outflows = (BLOCK_DIM + 2) * (BLOCK_DIM+2) * 3 * sizeof(double);
+  size_t sharedMem_halo_outflows = sharedSize * 3 * sizeof(double);
+  size_t sharedMem_halo_massBalance = sharedSize * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
 
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
@@ -449,13 +455,11 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-
-
-    computeOutflows_Tiled_wH<<<grid, block,sharedMem_halo_outflows>>>(sciara, BLOCK_DIM, BLOCK_DIM);
+    computeOutflows_Tiled_wH<<<grid, block,sharedMem_halo_outflows>>>(sciara);
     //computeOutflows_Tiled<<<grid,block,sharedMemSize_outflows>>>(sciara, BLOCK_DIM, BLOCK_DIM);
     cudaDeviceSynchronize();
 
-    massBalance_Tiled<<<grid, block, sharedMemSize_massBalance>>>(sciara, BLOCK_DIM, BLOCK_DIM);
+    massBalance_Tiled_wH<<<grid, block, sharedMem_halo_massBalance>>>(sciara);
     cudaDeviceSynchronize();
 
   

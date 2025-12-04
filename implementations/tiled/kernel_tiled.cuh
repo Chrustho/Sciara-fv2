@@ -5,11 +5,11 @@
 
 
 __global__ void computeOutflows_Tiled(
-    Sciara *sciara, const unsigned int tileX, const unsigned int tileY);
+    Sciara *sciara);
 
 
 __global__ void massBalance_Tiled(
-    Sciara *sciara, const unsigned int tileX, const unsigned int tileY);  
+    Sciara *sciara);  
 
 
 __global__ void computeNewTemperatureAndSolidification_Tiled();

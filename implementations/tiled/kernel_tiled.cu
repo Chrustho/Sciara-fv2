@@ -9,7 +9,7 @@ __constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neigh
 
 
 __global__ void computeOutflows_Tiled(
-    Sciara *sciara, const unsigned int tileX, const unsigned int tileY){
+    Sciara *sciara){
   int rows= sciara->domain->rows;
   int cols= sciara->domain->cols;
 
@@ -41,7 +41,7 @@ __global__ void computeOutflows_Tiled(
   int i = blockIdx.y * blockDim.y + threadIdx.y;
 
   int idx = i * cols + j;
-  int tid= tr* tileX +tc;
+  int tid= tr* blockDim.x +tc;
 
   if (i <rows && j < cols)
   {
@@ -178,7 +178,7 @@ __global__ void computeOutflows_Tiled(
 
 
 __global__ void massBalance_Tiled(
-    Sciara *sciara, const unsigned int tileX, const unsigned int tileY) {
+    Sciara *sciara) {
 
     int rows = sciara->domain->rows;
     int cols = sciara->domain->cols;
