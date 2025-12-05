@@ -8,6 +8,7 @@
 #include "implementations/global/kernel_global.cuh"
 #include "implementations/tiled/kernel_tiled.cuh"
 #include "implementations/tiled_with_halos/kernel_tiled_with_halo.cuh"
+#include "implementations/cfame/kernel_cfame.cuh"
 
 // ----------------------------------------------------------------------------
 // I/O parameters used to index argv[]
@@ -27,7 +28,7 @@
 #define BUF_GET(M, rows, columns, n, i, j) ( M[( ((n)*(rows)*(columns)) + ((i)*(columns)) + (j) )] )
 
 
-#define BLOCK_DIM 32
+#define BLOCK_DIM 10
 // ----------------------------------------------------------------------------
 // computing kernels, aka elementary processes in the XCA terminology
 // ----------------------------------------------------------------------------
@@ -441,6 +442,9 @@ int main(int argc, char **argv)
 
   size_t sharedMem_halo_outflows = sharedSize * 3 * sizeof(double);
   size_t sharedMem_halo_massBalance = sharedSize * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
+  
+  // Totale = 3 (stati) + 8 (flussi) = 11 double per cella
+  size_t sharedMemSize_cfame = sharedSize * 11 * sizeof(double);
 
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
@@ -455,14 +459,14 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-    computeOutflows_Global<<<grid, block>>>(sciara);
+    computeOutflows_cfame<<<grid, block, sharedMemSize_cfame>>>(sciara);
     //computeOutflows_Tiled<<<grid,block,sharedMemSize_outflows>>>(sciara, BLOCK_DIM, BLOCK_DIM);
     cudaDeviceSynchronize();
     cudaError_t err =cudaGetLastError();
     if(err != cudaSuccess) {
       printf("CRITICO:  %s\n", cudaGetErrorString(err));
     }
-
+    cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Global<<<grid, block>>>(sciara);
     cudaDeviceSynchronize();
 
