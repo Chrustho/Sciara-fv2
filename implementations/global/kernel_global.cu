@@ -73,7 +73,7 @@ __global__ void  computeOutflows_Global(
         z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0); 
     } 
 
-    w[k] = pc; // Questo va impostato comunque
+    w[k] = pc; 
     Pr[k] = rr;
   }
 
@@ -176,7 +176,7 @@ __global__ void massBalance_Global(Sciara *sciara)
   double initial_t = st[idx];
 
   double h_next = initial_h;
-  double t_next = initial_h * initial_t; // Energia termica attuale
+  double t_next = initial_h * initial_t;
 
   int layer_size = rows * cols;
 

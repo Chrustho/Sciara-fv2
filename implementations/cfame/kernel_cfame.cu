@@ -1,22 +1,23 @@
+#pragma once
+
+#include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "kernel_cfame.cuh"
 
 #define HALO 1
-// il motivo dell'indice inverso è perché se un thread cede calore
-// al thread a nord, allora quest'ultimo diciamo che riceve dal thread sud
-__constant__ int _indice_inverso_k[] = {0, 4, 3, 2, 1, 7, 8, 5, 6};
-__constant__ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; // Xj: Moore neighborhood row coordinates (see below)
-__constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neighborhood col coordinates (see below)
 
+__constant__ int d_Xi_cfame[] = {0, -1,  0,  0,  1, -1,  1,  1, -1};
+__constant__ int d_Xj_cfame[] = {0,  0, -1,  1,  0, -1, -1,  1,  1};
 
-__global__ void  computeOutflows_cfame(Sciara *sciara){
-
+__global__ void CfAMe_Kernel(Sciara *sciara) {
+    
     int rows = sciara->domain->rows;
     int cols = sciara->domain->cols;
 
     double *sh = sciara->substates->Sh;
-    double *h_next = sciara->substates->Sh_next;
+    double *sh_next = sciara->substates->Sh_next;
     double *st = sciara->substates->ST;
+    double *st_next = sciara->substates->ST_next;
     double *sz = sciara->substates->Sz;
 
     double _a = sciara->parameters->a;
@@ -25,15 +26,11 @@ __global__ void  computeOutflows_cfame(Sciara *sciara){
     double _d = sciara->parameters->d;
     double pc = sciara->parameters->Pc;
 
-    int sharedWidth = blockDim.x + 2 * HALO;   
-    int sharedHeight = blockDim.y + 2 * HALO;  
-    int sharedSize = sharedWidth * sharedHeight;  
+    int sharedWidth = blockDim.x + 2 * HALO;
+    int sharedHeight = blockDim.y + 2 * HALO;
+    int sharedSize = sharedWidth * sharedHeight;
 
-    extern __shared__ double shared_mem[];
-    double *sh_s = shared_mem;
-    double *st_s = shared_mem + sharedSize;
-    double *sz_s = shared_mem + sharedSize * 2;
-    double *f_s = shared_mem + sharedSize * 3;
+    extern __shared__ double f_shared[];
 
     int tc = threadIdx.x;
     int tr = threadIdx.y;
@@ -42,97 +39,694 @@ __global__ void  computeOutflows_cfame(Sciara *sciara){
     int i = blockIdx.y * blockDim.y + tr;
     int idx = i * cols + j;
 
-    int ts_c = tc + HALO; 
-    int ts_r = tr + HALO;  
+    int ts_c = tc + HALO;
+    int ts_r = tr + HALO;
     int tid_s = ts_r * sharedWidth + ts_c;
 
-    for(int k=0; k<8; k++) {
-        f_s[(tid_s * 8) + k] = 0.0;
-    }
 
-    // CARICAMENTO TILE CENTRALE 
     if (i < rows && j < cols) {
-        sh_s[tid_s] = sh[idx];
-        st_s[tid_s] = st[idx];
-        sz_s[tid_s] = sz[idx];
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + tid_s] = 0.0;
+        }
     }
 
-    //  CARICAMENTO HALO 
+    if (tc == 0) {
+        int gi = i;
+        int gj = j - HALO;
+        int sid = ts_r * sharedWidth + (ts_c - HALO);
+        
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + sid] = 0.0;
+        }
+    }
+
+    if (tc == blockDim.x - 1) {
+        int sid = ts_r * sharedWidth + (ts_c + HALO);
+        
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + sid] = 0.0;
+        }
+    }
+
+    if (tr == 0) {
+        int sid = (ts_r - HALO) * sharedWidth + ts_c;
+        
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + sid] = 0.0;
+        }
+    }
+
+    if (tr == blockDim.y - 1) {
+        int sid = (ts_r + HALO) * sharedWidth + ts_c;
+        
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + sid] = 0.0;
+        }
+    }
+
+    if (tc == 0 && tr == 0) {
+        int sid = (ts_r - HALO) * sharedWidth + (ts_c - HALO);
+        
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + sid] = 0.0;
+        }
+    }
+
+    if (tc == blockDim.x - 1 && tr == 0) {
+        int sid = (ts_r - HALO) * sharedWidth + (ts_c + HALO);
+        
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + sid] = 0.0;
+        }
+    }
+
+    if (tc == 0 && tr == blockDim.y - 1) {
+        int sid = (ts_r + HALO) * sharedWidth + (ts_c - HALO);
+        
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + sid] = 0.0;
+        }
+    }
+
+    if (tc == blockDim.x - 1 && tr == blockDim.y - 1) {
+        int sid = (ts_r + HALO) * sharedWidth + (ts_c + HALO);
+        
+        for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
+            f_shared[k * sharedSize + sid] = 0.0;
+        }
+    }
+
+    __syncthreads();
+
+    
+    if (i < rows && j < cols) {
+        double h0 = sh[idx];
+        
+        if (h0 > 0.0) {
+            bool eliminated[MOORE_NEIGHBORS];
+            double z[MOORE_NEIGHBORS];
+            double h[MOORE_NEIGHBORS];
+            double H[MOORE_NEIGHBORS];
+            double theta[MOORE_NEIGHBORS];
+            double Pr[MOORE_NEIGHBORS];
+            double w[MOORE_NEIGHBORS];
+
+            double sz0 = sz[idx];
+            double T_val = st[idx];
+
+            double rr = pow(10.0, _a + _b * T_val);
+            double hc = pow(10.0, _c + _d * T_val);
+
+            for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                int ni = i + d_Xi_cfame[k];
+                int nj = j + d_Xj_cfame[k];
+
+                bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                if (is_valid) {
+                    int idx_k = ni * cols + nj;
+                    double sz_k = sz[idx_k];
+                    h[k] = sh[idx_k];
+
+                    if (k < VON_NEUMANN_NEIGHBORS)
+                        z[k] = sz_k;
+                    else
+                        z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                } else {
+                    h[k] = 0.0;
+                    z[k] = sz0;
+                }
+
+                w[k] = pc;
+                Pr[k] = rr;
+            }
+
+            H[0] = z[0];
+            theta[0] = 0.0;
+            eliminated[0] = false;
+
+            for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                if (z[0] + h[0] > z[k] + h[k]) {
+                    H[k] = z[k] + h[k];
+                    theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                    eliminated[k] = false;
+                } else {
+                    eliminated[k] = true;
+                    H[k] = 0.0;
+                    theta[k] = 0.0;
+                }
+            }
+
+            bool loop;
+            double avg;
+            int counter;
+
+            do {
+                loop = false;
+                avg = h[0];
+                counter = 0;
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    if (!eliminated[k]) {
+                        avg += H[k];
+                        counter++;
+                    }
+                }
+
+                if (counter != 0)
+                    avg = avg / (double)counter;
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    if (!eliminated[k] && avg <= H[k]) {
+                        eliminated[k] = true;
+                        loop = true;
+                    }
+                }
+            } while (loop);
+
+            for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                int outflow_idx = k - 1;
+
+                if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                    f_shared[outflow_idx * sharedSize + tid_s] = Pr[k] * (avg - H[k]);
+                }
+            }
+        }
+    }
+
     
     // Halo sinistro
     if (tc == 0) {
         int gi = i;
         int gj = j - HALO;
         int sid = ts_r * sharedWidth + (ts_c - HALO);
-        
-        for(int k=0; k<8; k++) f_s[(sid * 8) + k] = 0.0;
+
         if (gi >= 0 && gi < rows && gj >= 0 && gj < cols) {
             int gidx = gi * cols + gj;
-            sh_s[sid] = sh[gidx];
-            st_s[sid] = st[gidx];
-            sz_s[sid] = sz[gidx];
+            double h0 = sh[gidx];
+
+            if (h0 > 0.0) {
+                bool eliminated[MOORE_NEIGHBORS];
+                double z[MOORE_NEIGHBORS];
+                double h[MOORE_NEIGHBORS];
+                double H[MOORE_NEIGHBORS];
+                double theta[MOORE_NEIGHBORS];
+                double Pr[MOORE_NEIGHBORS];
+                double w[MOORE_NEIGHBORS];
+
+                double sz0 = sz[gidx];
+                double T_val = st[gidx];
+
+                double rr = pow(10.0, _a + _b * T_val);
+                double hc = pow(10.0, _c + _d * T_val);
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    int ni = gi + d_Xi_cfame[k];
+                    int nj = gj + d_Xj_cfame[k];
+
+                    bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                    if (is_valid) {
+                        int idx_k = ni * cols + nj;
+                        double sz_k = sz[idx_k];
+                        h[k] = sh[idx_k];
+
+                        if (k < VON_NEUMANN_NEIGHBORS)
+                            z[k] = sz_k;
+                        else
+                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                    } else {
+                        h[k] = 0.0;
+                        z[k] = sz0;
+                    }
+
+                    w[k] = pc;
+                    Pr[k] = rr;
+                }
+
+                H[0] = z[0];
+                theta[0] = 0.0;
+                eliminated[0] = false;
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    if (z[0] + h[0] > z[k] + h[k]) {
+                        H[k] = z[k] + h[k];
+                        theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                        eliminated[k] = false;
+                    } else {
+                        eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
+                    }
+                }
+
+                bool loop;
+                double avg;
+                int counter;
+
+                do {
+                    loop = false;
+                    avg = h[0];
+                    counter = 0;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k]) {
+                            avg += H[k];
+                            counter++;
+                        }
+                    }
+
+                    if (counter != 0)
+                        avg = avg / (double)counter;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k] && avg <= H[k]) {
+                            eliminated[k] = true;
+                            loop = true;
+                        }
+                    }
+                } while (loop);
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    int outflow_idx = k - 1;
+
+                    if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                        f_shared[outflow_idx * sharedSize + sid] = Pr[k] * (avg - H[k]);
+                    }
+                }
+            }
         }
     }
 
-    // Halo destro 
+    // Halo destro
     if (tc == blockDim.x - 1) {
         int gi = i;
         int gj = j + HALO;
         int sid = ts_r * sharedWidth + (ts_c + HALO);
-        
-        for(int k=0; k<8; k++) f_s[(sid * 8) + k] = 0.0;
+
         if (gi >= 0 && gi < rows && gj >= 0 && gj < cols) {
             int gidx = gi * cols + gj;
-            sh_s[sid] = sh[gidx];
-            st_s[sid] = st[gidx];
-            sz_s[sid] = sz[gidx];
+            double h0 = sh[gidx];
+
+            if (h0 > 0.0) {
+                bool eliminated[MOORE_NEIGHBORS];
+                double z[MOORE_NEIGHBORS];
+                double h[MOORE_NEIGHBORS];
+                double H[MOORE_NEIGHBORS];
+                double theta[MOORE_NEIGHBORS];
+                double Pr[MOORE_NEIGHBORS];
+                double w[MOORE_NEIGHBORS];
+
+                double sz0 = sz[gidx];
+                double T_val = st[gidx];
+
+                double rr = pow(10.0, _a + _b * T_val);
+                double hc = pow(10.0, _c + _d * T_val);
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    int ni = gi + d_Xi_cfame[k];
+                    int nj = gj + d_Xj_cfame[k];
+
+                    bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                    if (is_valid) {
+                        int idx_k = ni * cols + nj;
+                        double sz_k = sz[idx_k];
+                        h[k] = sh[idx_k];
+
+                        if (k < VON_NEUMANN_NEIGHBORS)
+                            z[k] = sz_k;
+                        else
+                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                    } else {
+                        h[k] = 0.0;
+                        z[k] = sz0;
+                    }
+
+                    w[k] = pc;
+                    Pr[k] = rr;
+                }
+
+                H[0] = z[0];
+                theta[0] = 0.0;
+                eliminated[0] = false;
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    if (z[0] + h[0] > z[k] + h[k]) {
+                        H[k] = z[k] + h[k];
+                        theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                        eliminated[k] = false;
+                    } else {
+                        eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
+                    }
+                }
+
+                bool loop;
+                double avg;
+                int counter;
+
+                do {
+                    loop = false;
+                    avg = h[0];
+                    counter = 0;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k]) {
+                            avg += H[k];
+                            counter++;
+                        }
+                    }
+
+                    if (counter != 0)
+                        avg = avg / (double)counter;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k] && avg <= H[k]) {
+                            eliminated[k] = true;
+                            loop = true;
+                        }
+                    }
+                } while (loop);
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    int outflow_idx = k - 1;
+
+                    if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                        f_shared[outflow_idx * sharedSize + sid] = Pr[k] * (avg - H[k]);
+                    }
+                }
+            }
         }
     }
 
-    // Halo superiore 
+    // Halo superiore
     if (tr == 0) {
         int gi = i - HALO;
         int gj = j;
         int sid = (ts_r - HALO) * sharedWidth + ts_c;
-        
-        for(int k=0; k<8; k++) f_s[(sid * 8) + k] = 0.0;
+
         if (gi >= 0 && gi < rows && gj >= 0 && gj < cols) {
             int gidx = gi * cols + gj;
-            sh_s[sid] = sh[gidx];
-            st_s[sid] = st[gidx];
-            sz_s[sid] = sz[gidx];
+            double h0 = sh[gidx];
+
+            if (h0 > 0.0) {
+                bool eliminated[MOORE_NEIGHBORS];
+                double z[MOORE_NEIGHBORS];
+                double h[MOORE_NEIGHBORS];
+                double H[MOORE_NEIGHBORS];
+                double theta[MOORE_NEIGHBORS];
+                double Pr[MOORE_NEIGHBORS];
+                double w[MOORE_NEIGHBORS];
+
+                double sz0 = sz[gidx];
+                double T_val = st[gidx];
+
+                double rr = pow(10.0, _a + _b * T_val);
+                double hc = pow(10.0, _c + _d * T_val);
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    int ni = gi + d_Xi_cfame[k];
+                    int nj = gj + d_Xj_cfame[k];
+
+                    bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                    if (is_valid) {
+                        int idx_k = ni * cols + nj;
+                        double sz_k = sz[idx_k];
+                        h[k] = sh[idx_k];
+
+                        if (k < VON_NEUMANN_NEIGHBORS)
+                            z[k] = sz_k;
+                        else
+                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                    } else {
+                        h[k] = 0.0;
+                        z[k] = sz0;
+                    }
+
+                    w[k] = pc;
+                    Pr[k] = rr;
+                }
+
+                H[0] = z[0];
+                theta[0] = 0.0;
+                eliminated[0] = false;
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    if (z[0] + h[0] > z[k] + h[k]) {
+                        H[k] = z[k] + h[k];
+                        theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                        eliminated[k] = false;
+                    } else {
+                        eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
+                    }
+                }
+
+                bool loop;
+                double avg;
+                int counter;
+
+                do {
+                    loop = false;
+                    avg = h[0];
+                    counter = 0;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k]) {
+                            avg += H[k];
+                            counter++;
+                        }
+                    }
+
+                    if (counter != 0)
+                        avg = avg / (double)counter;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k] && avg <= H[k]) {
+                            eliminated[k] = true;
+                            loop = true;
+                        }
+                    }
+                } while (loop);
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    int outflow_idx = k - 1;
+
+                    if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                        f_shared[outflow_idx * sharedSize + sid] = Pr[k] * (avg - H[k]);
+                    }
+                }
+            }
         }
     }
 
-    // Halo inferiore 
+    // Halo inferiore
     if (tr == blockDim.y - 1) {
         int gi = i + HALO;
         int gj = j;
         int sid = (ts_r + HALO) * sharedWidth + ts_c;
-        for(int k=0; k<8; k++) f_s[(sid * 8) + k] = 0.0;
-        
+
         if (gi >= 0 && gi < rows && gj >= 0 && gj < cols) {
             int gidx = gi * cols + gj;
-            sh_s[sid] = sh[gidx];
-            st_s[sid] = st[gidx];
-            sz_s[sid] = sz[gidx];
+            double h0 = sh[gidx];
+
+            if (h0 > 0.0) {
+                bool eliminated[MOORE_NEIGHBORS];
+                double z[MOORE_NEIGHBORS];
+                double h[MOORE_NEIGHBORS];
+                double H[MOORE_NEIGHBORS];
+                double theta[MOORE_NEIGHBORS];
+                double Pr[MOORE_NEIGHBORS];
+                double w[MOORE_NEIGHBORS];
+
+                double sz0 = sz[gidx];
+                double T_val = st[gidx];
+
+                double rr = pow(10.0, _a + _b * T_val);
+                double hc = pow(10.0, _c + _d * T_val);
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    int ni = gi + d_Xi_cfame[k];
+                    int nj = gj + d_Xj_cfame[k];
+
+                    bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                    if (is_valid) {
+                        int idx_k = ni * cols + nj;
+                        double sz_k = sz[idx_k];
+                        h[k] = sh[idx_k];
+
+                        if (k < VON_NEUMANN_NEIGHBORS)
+                            z[k] = sz_k;
+                        else
+                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                    } else {
+                        h[k] = 0.0;
+                        z[k] = sz0;
+                    }
+
+                    w[k] = pc;
+                    Pr[k] = rr;
+                }
+
+                H[0] = z[0];
+                theta[0] = 0.0;
+                eliminated[0] = false;
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    if (z[0] + h[0] > z[k] + h[k]) {
+                        H[k] = z[k] + h[k];
+                        theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                        eliminated[k] = false;
+                    } else {
+                        eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
+                    }
+                }
+
+                bool loop;
+                double avg;
+                int counter;
+
+                do {
+                    loop = false;
+                    avg = h[0];
+                    counter = 0;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k]) {
+                            avg += H[k];
+                            counter++;
+                        }
+                    }
+
+                    if (counter != 0)
+                        avg = avg / (double)counter;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k] && avg <= H[k]) {
+                            eliminated[k] = true;
+                            loop = true;
+                        }
+                    }
+                } while (loop);
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    int outflow_idx = k - 1;
+
+                    if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                        f_shared[outflow_idx * sharedSize + sid] = Pr[k] * (avg - H[k]);
+                    }
+                }
+            }
         }
     }
-
-    // Halo angoli 
 
     // Angolo top-left
     if (tc == 0 && tr == 0) {
         int gi = i - HALO;
         int gj = j - HALO;
         int sid = (ts_r - HALO) * sharedWidth + (ts_c - HALO);
-        for(int k=0; k<8; k++) f_s[(sid * 8) + k] = 0.0;
-        
+
         if (gi >= 0 && gi < rows && gj >= 0 && gj < cols) {
             int gidx = gi * cols + gj;
-            sh_s[sid] = sh[gidx];
-            st_s[sid] = st[gidx];
-            sz_s[sid] = sz[gidx];
+            double h0 = sh[gidx];
+
+            if (h0 > 0.0) {
+                bool eliminated[MOORE_NEIGHBORS];
+                double z[MOORE_NEIGHBORS];
+                double h[MOORE_NEIGHBORS];
+                double H[MOORE_NEIGHBORS];
+                double theta[MOORE_NEIGHBORS];
+                double Pr[MOORE_NEIGHBORS];
+                double w[MOORE_NEIGHBORS];
+
+                double sz0 = sz[gidx];
+                double T_val = st[gidx];
+
+                double rr = pow(10.0, _a + _b * T_val);
+                double hc = pow(10.0, _c + _d * T_val);
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    int ni = gi + d_Xi_cfame[k];
+                    int nj = gj + d_Xj_cfame[k];
+
+                    bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                    if (is_valid) {
+                        int idx_k = ni * cols + nj;
+                        double sz_k = sz[idx_k];
+                        h[k] = sh[idx_k];
+
+                        if (k < VON_NEUMANN_NEIGHBORS)
+                            z[k] = sz_k;
+                        else
+                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                    } else {
+                        h[k] = 0.0;
+                        z[k] = sz0;
+                    }
+
+                    w[k] = pc;
+                    Pr[k] = rr;
+                }
+
+                H[0] = z[0];
+                theta[0] = 0.0;
+                eliminated[0] = false;
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    if (z[0] + h[0] > z[k] + h[k]) {
+                        H[k] = z[k] + h[k];
+                        theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                        eliminated[k] = false;
+                    } else {
+                        eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
+                    }
+                }
+
+                bool loop;
+                double avg;
+                int counter;
+
+                do {
+                    loop = false;
+                    avg = h[0];
+                    counter = 0;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k]) {
+                            avg += H[k];
+                            counter++;
+                        }
+                    }
+
+                    if (counter != 0)
+                        avg = avg / (double)counter;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k] && avg <= H[k]) {
+                            eliminated[k] = true;
+                            loop = true;
+                        }
+                    }
+                } while (loop);
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    int outflow_idx = k - 1;
+
+                    if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                        f_shared[outflow_idx * sharedSize + sid] = Pr[k] * (avg - H[k]);
+                    }
+                }
+            }
         }
     }
 
@@ -141,13 +735,101 @@ __global__ void  computeOutflows_cfame(Sciara *sciara){
         int gi = i - HALO;
         int gj = j + HALO;
         int sid = (ts_r - HALO) * sharedWidth + (ts_c + HALO);
-        for(int k=0; k<8; k++) f_s[(sid * 8) + k] = 0.0;
-        
+
         if (gi >= 0 && gi < rows && gj >= 0 && gj < cols) {
             int gidx = gi * cols + gj;
-            sh_s[sid] = sh[gidx];
-            st_s[sid] = st[gidx];
-            sz_s[sid] = sz[gidx];
+            double h0 = sh[gidx];
+
+            if (h0 > 0.0) {
+                bool eliminated[MOORE_NEIGHBORS];
+                double z[MOORE_NEIGHBORS];
+                double h[MOORE_NEIGHBORS];
+                double H[MOORE_NEIGHBORS];
+                double theta[MOORE_NEIGHBORS];
+                double Pr[MOORE_NEIGHBORS];
+                double w[MOORE_NEIGHBORS];
+
+                double sz0 = sz[gidx];
+                double T_val = st[gidx];
+
+                double rr = pow(10.0, _a + _b * T_val);
+                double hc = pow(10.0, _c + _d * T_val);
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    int ni = gi + d_Xi_cfame[k];
+                    int nj = gj + d_Xj_cfame[k];
+
+                    bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                    if (is_valid) {
+                        int idx_k = ni * cols + nj;
+                        double sz_k = sz[idx_k];
+                        h[k] = sh[idx_k];
+
+                        if (k < VON_NEUMANN_NEIGHBORS)
+                            z[k] = sz_k;
+                        else
+                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                    } else {
+                        h[k] = 0.0;
+                        z[k] = sz0;
+                    }
+
+                    w[k] = pc;
+                    Pr[k] = rr;
+                }
+
+                H[0] = z[0];
+                theta[0] = 0.0;
+                eliminated[0] = false;
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    if (z[0] + h[0] > z[k] + h[k]) {
+                        H[k] = z[k] + h[k];
+                        theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                        eliminated[k] = false;
+                    } else {
+                        eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
+                    }
+                }
+
+                bool loop;
+                double avg;
+                int counter;
+
+                do {
+                    loop = false;
+                    avg = h[0];
+                    counter = 0;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k]) {
+                            avg += H[k];
+                            counter++;
+                        }
+                    }
+
+                    if (counter != 0)
+                        avg = avg / (double)counter;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k] && avg <= H[k]) {
+                            eliminated[k] = true;
+                            loop = true;
+                        }
+                    }
+                } while (loop);
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    int outflow_idx = k - 1;
+
+                    if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                        f_shared[outflow_idx * sharedSize + sid] = Pr[k] * (avg - H[k]);
+                    }
+                }
+            }
         }
     }
 
@@ -156,13 +838,101 @@ __global__ void  computeOutflows_cfame(Sciara *sciara){
         int gi = i + HALO;
         int gj = j - HALO;
         int sid = (ts_r + HALO) * sharedWidth + (ts_c - HALO);
-        for(int k=0; k<8; k++) f_s[(sid * 8) + k] = 0.0;
-        
+
         if (gi >= 0 && gi < rows && gj >= 0 && gj < cols) {
             int gidx = gi * cols + gj;
-            sh_s[sid] = sh[gidx];
-            st_s[sid] = st[gidx];
-            sz_s[sid] = sz[gidx];
+            double h0 = sh[gidx];
+
+            if (h0 > 0.0) {
+                bool eliminated[MOORE_NEIGHBORS];
+                double z[MOORE_NEIGHBORS];
+                double h[MOORE_NEIGHBORS];
+                double H[MOORE_NEIGHBORS];
+                double theta[MOORE_NEIGHBORS];
+                double Pr[MOORE_NEIGHBORS];
+                double w[MOORE_NEIGHBORS];
+
+                double sz0 = sz[gidx];
+                double T_val = st[gidx];
+
+                double rr = pow(10.0, _a + _b * T_val);
+                double hc = pow(10.0, _c + _d * T_val);
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    int ni = gi + d_Xi_cfame[k];
+                    int nj = gj + d_Xj_cfame[k];
+
+                    bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                    if (is_valid) {
+                        int idx_k = ni * cols + nj;
+                        double sz_k = sz[idx_k];
+                        h[k] = sh[idx_k];
+
+                        if (k < VON_NEUMANN_NEIGHBORS)
+                            z[k] = sz_k;
+                        else
+                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                    } else {
+                        h[k] = 0.0;
+                        z[k] = sz0;
+                    }
+
+                    w[k] = pc;
+                    Pr[k] = rr;
+                }
+
+                H[0] = z[0];
+                theta[0] = 0.0;
+                eliminated[0] = false;
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    if (z[0] + h[0] > z[k] + h[k]) {
+                        H[k] = z[k] + h[k];
+                        theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                        eliminated[k] = false;
+                    } else {
+                        eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
+                    }
+                }
+
+                bool loop;
+                double avg;
+                int counter;
+
+                do {
+                    loop = false;
+                    avg = h[0];
+                    counter = 0;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k]) {
+                            avg += H[k];
+                            counter++;
+                        }
+                    }
+
+                    if (counter != 0)
+                        avg = avg / (double)counter;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k] && avg <= H[k]) {
+                            eliminated[k] = true;
+                            loop = true;
+                        }
+                    }
+                } while (loop);
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    int outflow_idx = k - 1;
+
+                    if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                        f_shared[outflow_idx * sharedSize + sid] = Pr[k] * (avg - H[k]);
+                    }
+                }
+            }
         }
     }
 
@@ -171,151 +941,142 @@ __global__ void  computeOutflows_cfame(Sciara *sciara){
         int gi = i + HALO;
         int gj = j + HALO;
         int sid = (ts_r + HALO) * sharedWidth + (ts_c + HALO);
-        for(int k=0; k<8; k++) f_s[(sid * 8) + k] = 0.0;
-        
+
         if (gi >= 0 && gi < rows && gj >= 0 && gj < cols) {
             int gidx = gi * cols + gj;
-            sh_s[sid] = sh[gidx];
-            st_s[sid] = st[gidx];
-            sz_s[sid] = sz[gidx];
+            double h0 = sh[gidx];
+
+            if (h0 > 0.0) {
+                bool eliminated[MOORE_NEIGHBORS];
+                double z[MOORE_NEIGHBORS];
+                double h[MOORE_NEIGHBORS];
+                double H[MOORE_NEIGHBORS];
+                double theta[MOORE_NEIGHBORS];
+                double Pr[MOORE_NEIGHBORS];
+                double w[MOORE_NEIGHBORS];
+
+                double sz0 = sz[gidx];
+                double T_val = st[gidx];
+
+                double rr = pow(10.0, _a + _b * T_val);
+                double hc = pow(10.0, _c + _d * T_val);
+
+                for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                    int ni = gi + d_Xi_cfame[k];
+                    int nj = gj + d_Xj_cfame[k];
+
+                    bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+
+                    if (is_valid) {
+                        int idx_k = ni * cols + nj;
+                        double sz_k = sz[idx_k];
+                        h[k] = sh[idx_k];
+
+                        if (k < VON_NEUMANN_NEIGHBORS)
+                            z[k] = sz_k;
+                        else
+                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                    } else {
+                        h[k] = 0.0;
+                        z[k] = sz0;
+                    }
+
+                    w[k] = pc;
+                    Pr[k] = rr;
+                }
+
+                H[0] = z[0];
+                theta[0] = 0.0;
+                eliminated[0] = false;
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    if (z[0] + h[0] > z[k] + h[k]) {
+                        H[k] = z[k] + h[k];
+                        theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                        eliminated[k] = false;
+                    } else {
+                        eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
+                    }
+                }
+
+                bool loop;
+                double avg;
+                int counter;
+
+                do {
+                    loop = false;
+                    avg = h[0];
+                    counter = 0;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k]) {
+                            avg += H[k];
+                            counter++;
+                        }
+                    }
+
+                    if (counter != 0)
+                        avg = avg / (double)counter;
+
+                    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                        if (!eliminated[k] && avg <= H[k]) {
+                            eliminated[k] = true;
+                            loop = true;
+                        }
+                    }
+                } while (loop);
+
+                for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                    int outflow_idx = k - 1;
+
+                    if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
+                        f_shared[outflow_idx * sharedSize + sid] = Pr[k] * (avg - H[k]);
+                    }
+                }
+            }
         }
     }
 
-    __syncthreads();
-
+   __syncthreads();
 
     if (i >= rows || j >= cols) return;
 
-    double h0 = sh_s[tid_s];
-    if (h0 <= 0.0) return;
+    const int inflowsIndices[NUMBER_OF_OUTFLOWS] = {3, 2, 1, 0, 6, 7, 4, 5};
 
-    bool eliminated[MOORE_NEIGHBORS];
-    double z[MOORE_NEIGHBORS];
-    double h[MOORE_NEIGHBORS];
-    double H[MOORE_NEIGHBORS];
-    double theta[MOORE_NEIGHBORS];
-    double Pr[MOORE_NEIGHBORS];
-    double w[MOORE_NEIGHBORS];
+    double initial_h = sh[idx];
+    double initial_t = st[idx];
 
-    double sz0 = sz_s[tid_s];
-    double T_val = st_s[tid_s];
+    double h_next_val = initial_h;
+    double t_next_val = initial_h * initial_t;
 
-    double rr = pow(10.0, _a + _b * T_val);
-    double hc = pow(10.0, _c + _d * T_val);
+    for (int n = 1; n < MOORE_NEIGHBORS; n++) {
+        int ni = i + d_Xi_cfame[n];
+        int nj = j + d_Xj_cfame[n];
 
-    for (int k = 0; k < MOORE_NEIGHBORS; k++)
-    {
-        int ni = i + _Xi[k];
-        int nj = j + _Xj[k];
+        if (ni < 0 || ni >= rows || nj < 0 || nj >= cols)
+            continue;
 
-        bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
+        int ts_r_n = ts_r + d_Xi_cfame[n];
+        int ts_c_n = ts_c + d_Xj_cfame[n];
+        int tid_s_n = ts_r_n * sharedWidth + ts_c_n;
 
-        if (is_valid) {
-            int ts_r_k = ts_r + _Xi[k];
-            int ts_c_k = ts_c + _Xj[k];
-            int tid_s_k = ts_r_k * sharedWidth + ts_c_k;
+        int out_layer = n - 1;
+        double outFlow = f_shared[out_layer * sharedSize + tid_s];
 
-            double sz_k = sz_s[tid_s_k];
-            h[k] = sh_s[tid_s_k];
+        int in_layer = inflowsIndices[n - 1];
+        double inFlow = f_shared[in_layer * sharedSize + tid_s_n];
 
-            if (k < VON_NEUMANN_NEIGHBORS)
-                z[k] = sz_k;
-            else
-                z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
-        }
+        double neigh_t = st[ni * cols + nj];
 
-        w[k] = pc;
-        Pr[k] = rr;
+        h_next_val += (inFlow - outFlow);
+        t_next_val += (inFlow * neigh_t - outFlow * initial_t);
     }
 
-    H[0] = z[0];
-    theta[0] = 0.0;
-    eliminated[0] = false;
-
-    for (int k = 1; k < MOORE_NEIGHBORS; k++)
-    {
-        if (z[0] + h[0] > z[k] + h[k])
-        {
-            H[k] = z[k] + h[k];
-            theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
-            eliminated[k] = false;
-        }
-        else
-        {
-            eliminated[k] = true;
-            H[k] = 0.0;
-            theta[k] = 0.0;
-        }
-    }
-
-    bool loop;
-    double avg;
-    int counter;
-
-    do
-    {
-        loop = false;
-        avg = h[0];
-        counter = 0;
-
-        for (int k = 0; k < MOORE_NEIGHBORS; k++)
-        {
-            if (!eliminated[k])
-            {
-                avg += H[k];
-                counter++;
-            }
-        }
-
-        if (counter != 0)
-            avg = avg / (double)counter;
-
-        for (int k = 0; k < MOORE_NEIGHBORS; k++)
-        {
-            if (!eliminated[k] && avg <= H[k])
-            {
-                eliminated[k] = true;
-                loop = true;
-            }
-        }
-    } while (loop);
-
-    // parte di cfame, praticamente aggiungo tutto in shmem anziché global mf
-
-    for (int k = 1; k < MOORE_NEIGHBORS; k++)
-    {
-
-      double flow = 0.0;
-      if(!eliminated[k] && h[0] > hc*cos(theta[k])) {
-        flow = Pr[k] * (avg - H[k]);
-      }
-
-      f_s[tid_s * 8 + k - 1] = flow;
-    }
-
-
-    __syncthreads();
-
-    /* Ora posso usare i flussi in shmem calcolati per aggiornare tutti in massa */
-
-    if( i < rows && j < cols) {
-      double h_new = sh_s[tid_s];
-      for (int k = 1; k < MOORE_NEIGHBORS; k++) {
-        // caccia i flussi uscenti
-        double out_flow = f_s[tid_s * 8 + k - 1];
-        h_new -=out_flow;
-
-        // aggiungi i flussi
-        int ts_r_vicino = ts_r + _Xi[k];
-        int ts_c_vicino = ts_c + _Xj[k];
-        int tid_s_vicino = ts_r_vicino * sharedWidth + ts_c_vicino;
-
-
-        int indice_inverso = _indice_inverso_k[k];
-        double in_flow = f_s[(tid_s_vicino * 8) + (indice_inverso - 1)];
-        h_new += in_flow;
-      }
-      h_next[idx] = h_new;
+    if (h_next_val > 0) {
+        t_next_val /= h_next_val;
+        st_next[idx] = t_next_val;
+        sh_next[idx] = h_next_val;
     }
 }
-

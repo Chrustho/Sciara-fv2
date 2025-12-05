@@ -3,4 +3,4 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 
-__global__ void CfAMe_Kernel(Sciara *sciara);
+__global__ void CfAMo_Kernel(Sciara *sciara);
