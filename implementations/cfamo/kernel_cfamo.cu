@@ -79,6 +79,10 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
             h_next_shared[sid] = sh[gidx];
             t_next_shared[sid] = sh[gidx] * st[gidx];
         }
+        else {
+            h_next_shared[sid] = 0.0;
+            t_next_shared[sid] = 0.0;
+        }
     }
 
     //  halo superiore

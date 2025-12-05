@@ -29,7 +29,7 @@
 #define BUF_GET(M, rows, columns, n, i, j) ( M[( ((n)*(rows)*(columns)) + ((i)*(columns)) + (j) )] )
 
 
-#define BLOCK_DIM 16
+#define BLOCK_DIM 22
 // ----------------------------------------------------------------------------
 // computing kernels, aka elementary processes in the XCA terminology
 // ----------------------------------------------------------------------------
@@ -343,6 +343,7 @@ int main(int argc, char **argv)
 
   printf("Inizializzata la simulazione\n");
 
+
   util::Timer cl_timer;
   int reduceInterval = atoi(argv[REDUCE_INTERVL_ID]);
   double thickness_threshold = atof(argv[THICKNESS_THRESHOLD_ID]);
@@ -374,15 +375,14 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-/*    
-    computeOutflows_Tiled<<<grid,block,sharedMemSize_outflows>>>(sciara);
+
+    computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sciara);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-    massBalance_Tiled<<<grid, block,sharedMemSize_massBalance>>>(sciara);
+    massBalance_Tiled_wH<<<grid, block,sharedMem_halo_massBalance>>>(sciara);
     cudaDeviceSynchronize();
-*/
-
 /*
+
     int sharedWidth_cfame = block.x + 2;  // HALO = 1
     int sharedHeight_cfame = block.y + 2;
     int sharedSize_cfame = sharedWidth_cfame * sharedHeight_cfame;
@@ -390,9 +390,9 @@ int main(int argc, char **argv)
 
     CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sciara);
     cudaDeviceSynchronize();
-*/
 
 
+/*
     int sharedWidth_cfamo = block.x + 2;  // HALO = 1
     int sharedHeight_cfamo = block.y + 2;
     int sharedSize_cfamo = sharedWidth_cfamo * sharedHeight_cfamo;
@@ -401,7 +401,7 @@ int main(int argc, char **argv)
 
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sciara);
     cudaDeviceSynchronize();
-
+*/
 
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
