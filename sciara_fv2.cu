@@ -380,9 +380,9 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Tiled<<<grid, block,sharedMemSize_massBalance>>>(sciara);
     cudaDeviceSynchronize();
-*/
 
-/*
+
+
     int sharedWidth_cfame = block.x + 2;  // HALO = 1
     int sharedHeight_cfame = block.y + 2;
     int sharedSize_cfame = sharedWidth_cfame * sharedHeight_cfame;
@@ -390,14 +390,18 @@ int main(int argc, char **argv)
 
     CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sciara);
     cudaDeviceSynchronize();
-*/
+*/ 
+    
+    int num_outflows = NUMBER_OF_OUTFLOWS; 
 
-
-    int sharedWidth_cfamo = block.x + 2;  // HALO = 1
-    int sharedHeight_cfamo = block.y + 2;
+    int sharedWidth_cfamo = block.x + 2 * HALO; // Assicurati di usare HALO corretto (es. 1)
+    int sharedHeight_cfamo = block.y + 2 * HALO;
     int sharedSize_cfamo = sharedWidth_cfamo * sharedHeight_cfamo;
 
-    size_t sharedMemSize_CfAMo = sharedSize_cfamo * 2 * sizeof(double);
+    // Dimensione totale:
+    // 1x Sh + 1x St + 1x Sz + 8x Mf (un layer per ogni direzione)
+    // Totale = 11 layer di double
+    size_t sharedMemSize_CfAMo = sharedSize_cfamo * (3 + num_outflows) * sizeof(double);
 
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sciara);
     cudaDeviceSynchronize();
