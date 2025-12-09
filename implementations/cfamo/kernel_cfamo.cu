@@ -82,6 +82,7 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                 int ni = i + _Xi[k];
                 int nj = j + _Xj[k];
                 
+                // --- FIX INIZIO ---
                 if (ni >= 0 && ni < rows && nj >= 0 && nj < cols) {
                     int nidx = ni * cols + nj;
                     h[k] = sh[nidx];
@@ -90,6 +91,7 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                     if (k < VON_NEUMANN_NEIGHBORS) z[k] = sz_k;
                     else z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
                 }
+                // --- FIX FINE ---
                 w[k] = pc;
                 Pr[k] = rr;
             }
@@ -124,7 +126,6 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                 }
             } while (loop);
 
-            // Salvataggio locale flussi
             for (int k = 1; k < MOORE_NEIGHBORS; k++) {
                 if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
                     calculated_flows[k-1] = Pr[k] * (avg - H[k]);
@@ -150,11 +151,9 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
             int tid_s_neigh = tn_r * sharedWidth + tn_c;
 
             if (my_flow > 0.0) {
-                // Accumulo Massa
                 double current_mass = sh_accum[tid_s_neigh];
                 sh_accum[tid_s_neigh] = current_mass + my_flow;
 
-                // Accumulo Energia (Massa * Temp)
                 double current_energy = en_accum[tid_s_neigh];
                 en_accum[tid_s_neigh] = current_energy + (my_flow * t0);
             }
@@ -173,17 +172,17 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
         double inflow_mass = sh_accum[tid_s];
         double inflow_energy = en_accum[tid_s];
         
-        // Bilancio
         double h_new = h0 + inflow_mass - total_outflow;
         double t_new = t0;
 
         if (h_new > 0) {
-             double e_residual = (h0 - total_outflow) * t0;
-             t_new = (e_residual + inflow_energy) / h_new;
+            double e_residual = (h0 - total_outflow) * t0;
+            t_new = (e_residual + inflow_energy) / h_new;
+            sh_next[idx] = h_new;
+             st_next[idx] = t_new;
         }
 
-        sh_next[idx] = h_new;
-        st_next[idx] = t_new;
+
         
     }
 }
