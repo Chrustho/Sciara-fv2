@@ -2,12 +2,10 @@
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled_with_halos/kernel_tiled_with_halo.cuh"
 
-// Assicurati che HALO sia definito
 #ifndef HALO
 #define HALO 1
 #endif
 
-// Moore Neighborhood relative coordinates (Centre + 8 neighbors)
 __constant__ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; 
 __constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; 
 
@@ -19,9 +17,7 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
     double *sh = sciara->substates->Sh;
     double *st = sciara->substates->ST;
     double *sz = sciara->substates->Sz;
-    double *mf = sciara->substates->Mf; 
     
-    // Output
     double *sh_next = sciara->substates->Sh_next;
     double *st_next = sciara->substates->ST_next;
 
@@ -36,35 +32,51 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
     int sharedSize = sharedWidth * sharedHeight;
 
     extern __shared__ double shared_mem[];
-    double *sh_accum = shared_mem;              
-    double *en_accum = shared_mem + sharedSize; 
+    
+    double *sh_s = shared_mem;
+    double *sz_s = shared_mem + sharedSize;
+    double *st_s = shared_mem + 2 * sharedSize;
+    double *sh_accum = shared_mem + 3 * sharedSize;              
+    double *en_accum = shared_mem + 4 * sharedSize; 
+
     int tc = threadIdx.x;
     int tr = threadIdx.y;
     int tid_s = tr * sharedWidth + tc;
-
 
     int j = blockIdx.x * (blockDim.x - 2 * HALO) + tc - HALO;
     int i = blockIdx.y * (blockDim.y - 2 * HALO) + tr - HALO;
     int idx = i * cols + j;
 
+    bool is_valid_sim_cell = (i >= 0 && i < rows && j >= 0 && j < cols);
+
+    if (is_valid_sim_cell) {
+        sh_s[tid_s] = sh[idx];
+        sz_s[tid_s] = sz[idx];
+        st_s[tid_s] = st[idx];
+    } else {
+        sh_s[tid_s] = 0.0; 
+        sz_s[tid_s] = 0.0; 
+        st_s[tid_s] = 0.0;
+    }
+
     sh_accum[tid_s] = 0.0;
     en_accum[tid_s] = 0.0;
     
-    __syncthreads();
+    __syncthreads(); 
 
-    bool is_valid_sim_cell = (i >= 0 && i < rows && j >= 0 && j < cols);
-    
     double calculated_flows[8];
+    #pragma unroll
     for(int k=0; k<8; k++) calculated_flows[k] = 0.0;
     
     double h0 = 0.0;
     double t0 = 0.0;
 
     if (is_valid_sim_cell) {
-        h0 = sh[idx]; 
+        h0 = sh_s[tid_s]; 
+        
         if (h0 > 0.0) {
-            t0 = st[idx];
-            double sz0 = sz[idx];
+            t0 = st_s[tid_s]; // Lettura da Shared
+            double sz0 = sz_s[tid_s]; // Lettura da Shared
             
             bool eliminated[MOORE_NEIGHBORS];
             double z[MOORE_NEIGHBORS];
@@ -77,21 +89,34 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
             double rr = pow(10.0, _a + _b * t0);
             double hc = pow(10.0, _c + _d * t0);
 
-            // Caricamento Vicini da GLOBAL MEMORY
             for (int k = 0; k < MOORE_NEIGHBORS; k++) {
-                int ni = i + _Xi[k];
-                int nj = j + _Xj[k];
+                int ntc = tc + _Xj[k];
+                int ntr = tr + _Xi[k];
                 
-                // --- FIX INIZIO ---
-                if (ni >= 0 && ni < rows && nj >= 0 && nj < cols) {
-                    int nidx = ni * cols + nj;
-                    h[k] = sh[nidx];
-                    double sz_k = sz[nidx];
-                    
-                    if (k < VON_NEUMANN_NEIGHBORS) z[k] = sz_k;
-                    else z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                double sz_k, h_k;
+
+                if (ntc >= 0 && ntc < sharedWidth && ntr >= 0 && ntr < sharedHeight) {
+                    int nidx_s = ntr * sharedWidth + ntc;
+                    h_k = sh_s[nidx_s];
+                    sz_k = sz_s[nidx_s];
+                } else {
+                    int ni = i + _Xi[k];
+                    int nj = j + _Xj[k];
+                    if (ni >= 0 && ni < rows && nj >= 0 && nj < cols) {
+                        int nidx = ni * cols + nj;
+                        h_k = sh[nidx];
+                        sz_k = sz[nidx];
+                    } else {
+                        h_k = 0.0;
+                        sz_k = sz0; 
+                    }
                 }
-                // --- FIX FINE ---
+                
+                h[k] = h_k;
+                
+                if (k < VON_NEUMANN_NEIGHBORS) z[k] = sz_k;
+                else z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                
                 w[k] = pc;
                 Pr[k] = rr;
             }
@@ -134,8 +159,6 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
         }
     }
 
-
-    
     double total_outflow = 0.0;
 
     for (int step = 1; step < MOORE_NEIGHBORS; step++) { 
@@ -146,11 +169,12 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
         int tn_c = tc + _Xj[step];
         int tn_r = tr + _Xi[step];
 
-        if (tn_c >= 0 && tn_c < blockDim.x && tn_r >= 0 && tn_r < blockDim.y) {
+        if (tn_c >= 0 && tn_c < sharedWidth && tn_r >= 0 && tn_r < sharedHeight) {
             
             int tid_s_neigh = tn_r * sharedWidth + tn_c;
 
             if (my_flow > 0.0) {
+                
                 double current_mass = sh_accum[tid_s_neigh];
                 sh_accum[tid_s_neigh] = current_mass + my_flow;
 
@@ -158,11 +182,8 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                 en_accum[tid_s_neigh] = current_energy + (my_flow * t0);
             }
         }
-
-
         __syncthreads();
     }
-
 
     bool internal_thread = (tc >= HALO && tc < blockDim.x - HALO && 
                             tr >= HALO && tr < blockDim.y - HALO);
@@ -179,10 +200,7 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
             double e_residual = (h0 - total_outflow) * t0;
             t_new = (e_residual + inflow_energy) / h_new;
             sh_next[idx] = h_new;
-             st_next[idx] = t_new;
+            st_next[idx] = t_new;
         }
-
-
-        
     }
 }

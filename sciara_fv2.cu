@@ -401,7 +401,7 @@ int main(int argc, char **argv)
     // Dimensione totale:
     // 1x Sh + 1x St + 1x Sz + 8x Mf (un layer per ogni direzione)
     // Totale = 11 layer di double
-    size_t sharedMemSize_CfAMo = sharedSize_cfamo * 2 * sizeof(double);
+    size_t sharedMemSize_CfAMo = sharedSize_cfamo * 5 * sizeof(double);
 
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sciara);
     cudaDeviceSynchronize();
