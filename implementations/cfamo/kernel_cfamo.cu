@@ -89,6 +89,8 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
             double rr = pow(10.0, _a + _b * t0);
             double hc = pow(10.0, _c + _d * t0);
 
+            double rad = sqrt(2.0);
+
             for (int k = 0; k < MOORE_NEIGHBORS; k++) {
                 int ntc = tc + _Xj[k];
                 int ntr = tr + _Xi[k];
@@ -115,7 +117,7 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                 h[k] = h_k;
                 
                 if (k < VON_NEUMANN_NEIGHBORS) z[k] = sz_k;
-                else z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                else z[k] = sz0 - (sz0 - sz_k) / rad;
                 
                 w[k] = pc;
                 Pr[k] = rr;

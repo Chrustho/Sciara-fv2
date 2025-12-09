@@ -374,15 +374,15 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-/*
-    computeOutflows_Tiled<<<grid,block,sharedMemSize_outflows>>>(sciara);
+
+    computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sciara);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-    massBalance_Tiled<<<grid, block,sharedMemSize_massBalance>>>(sciara);
+    massBalance_Tiled_wH<<<grid, block,sharedMem_halo_massBalance>>>(sciara);
     cudaDeviceSynchronize();
 
 
-
+/*
     int sharedWidth_cfame = block.x + 2;  // HALO = 1
     int sharedHeight_cfame = block.y + 2;
     int sharedSize_cfame = sharedWidth_cfame * sharedHeight_cfame;
@@ -390,9 +390,7 @@ int main(int argc, char **argv)
 
     CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sciara);
     cudaDeviceSynchronize();
-*/ 
-    
-    int num_outflows = NUMBER_OF_OUTFLOWS; 
+
 
     int sharedWidth_cfamo = block.x + 2 * HALO; // Assicurati di usare HALO corretto (es. 1)
     int sharedHeight_cfamo = block.y + 2 * HALO;
@@ -405,7 +403,7 @@ int main(int argc, char **argv)
 
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sciara);
     cudaDeviceSynchronize();
-
+*/
 
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
@@ -418,18 +416,19 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, sizeBuffer, cudaMemcpyDeviceToDevice);
 
+/*
     boundaryConditions_Global<<<grid, block>>>(sciara);
     cudaDeviceSynchronize();
 
 
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-
+*/
 
     if (sciara->simulation->step % reduceInterval == 0)
     {
       total_current_lava = reduceAdd(rows, cols, sciara->substates->Sh);
-      printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
+     // printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
     }
   }
 

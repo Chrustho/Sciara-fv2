@@ -7,6 +7,8 @@
 __constant__ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; // Xj: Moore neighborhood row coordinates (see below)
 __constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neighborhood col coordinates (see below)
 
+__constant__ int rows  = 378;
+__constant__ int cols = 517;
 
 __global__ void computeOutflows_Tiled(
     Sciara *sciara){
@@ -72,6 +74,8 @@ __global__ void computeOutflows_Tiled(
   double rr = pow(10.0, _a + _b * T_val);
   double hc = pow(10.0, _c + _d * T_val);
 
+  double rad = sqrt(2.0);
+
   for (int k = 0; k < MOORE_NEIGHBORS; k++)
   {
     int ni = i + _Xi[k];
@@ -100,7 +104,7 @@ __global__ void computeOutflows_Tiled(
       if (k < VON_NEUMANN_NEIGHBORS)
         z[k] = sz_k;
       else
-        z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0); 
+        z[k] = sz0 - (sz0 - sz_k) / rad; 
     }
 
     w[k] = pc;
@@ -113,17 +117,14 @@ __global__ void computeOutflows_Tiled(
 
   for (int k = 1; k < MOORE_NEIGHBORS; k++)
   {
+          eliminated[k] = true;
+      H[k] = 0.0; 
+      theta[k]=0.;
     if (z[0] + h[0] > z[k] + h[k])
     {
       H[k] = z[k] + h[k];
       theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
       eliminated[k] = false;
-    }
-    else
-    {
-      eliminated[k] = true;
-      H[k] = 0.0; 
-      theta[k]=0.;
     }
   }
 
@@ -164,13 +165,12 @@ __global__ void computeOutflows_Tiled(
     int outflow_idx = k - 1; 
     int mf_idx = (outflow_idx * rows * cols) + idx;
 
+          mf[mf_idx] = 0.0;
+
+
     if (!eliminated[k] && h[0] > hc * cos(theta[k]))
     {
       mf[mf_idx] = Pr[k] * (avg - H[k]);
-    }
-    else
-    {
-      mf[mf_idx] = 0.0;
     }
   }
 

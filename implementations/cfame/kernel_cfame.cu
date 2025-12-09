@@ -118,6 +118,8 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
 
     __syncthreads();
 
+    double rad = sqrt(2.0);
+
     
     if (i < rows && j < cols) {
         double h0 = sh[idx];
@@ -151,7 +153,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                     if (k < VON_NEUMANN_NEIGHBORS)
                         z[k] = sz_k;
                     else
-                        z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                        z[k] = sz0 - (sz0 - sz_k) / rad;
                 } else {
                     h[k] = 0.0;
                     z[k] = sz0;
@@ -166,14 +168,13 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
             eliminated[0] = false;
 
             for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                eliminated[k] = true;
+                H[k] = 0.0;
+                theta[k] = 0.0;
                 if (z[0] + h[0] > z[k] + h[k]) {
                     H[k] = z[k] + h[k];
                     theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                     eliminated[k] = false;
-                } else {
-                    eliminated[k] = true;
-                    H[k] = 0.0;
-                    theta[k] = 0.0;
                 }
             }
 
@@ -254,7 +255,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                         if (k < VON_NEUMANN_NEIGHBORS)
                             z[k] = sz_k;
                         else
-                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                            z[k] = sz0 - (sz0 - sz_k) / rad;
                     } else {
                         h[k] = 0.0;
                         z[k] = sz0;
@@ -269,14 +270,13 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                                            eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {
                         H[k] = z[k] + h[k];
                         theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                         eliminated[k] = false;
-                    } else {
-                        eliminated[k] = true;
-                        H[k] = 0.0;
-                        theta[k] = 0.0;
                     }
                 }
 
@@ -357,7 +357,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                         if (k < VON_NEUMANN_NEIGHBORS)
                             z[k] = sz_k;
                         else
-                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                            z[k] = sz0 - (sz0 - sz_k) / rad;
                     } else {
                         h[k] = 0.0;
                         z[k] = sz0;
@@ -372,14 +372,13 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                                            eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {
                         H[k] = z[k] + h[k];
                         theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                         eliminated[k] = false;
-                    } else {
-                        eliminated[k] = true;
-                        H[k] = 0.0;
-                        theta[k] = 0.0;
                     }
                 }
 
@@ -460,7 +459,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                         if (k < VON_NEUMANN_NEIGHBORS)
                             z[k] = sz_k;
                         else
-                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                            z[k] = sz0 - (sz0 - sz_k) / rad;
                     } else {
                         h[k] = 0.0;
                         z[k] = sz0;
@@ -475,14 +474,13 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                                            eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {
                         H[k] = z[k] + h[k];
                         theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                         eliminated[k] = false;
-                    } else {
-                        eliminated[k] = true;
-                        H[k] = 0.0;
-                        theta[k] = 0.0;
                     }
                 }
 
@@ -563,7 +561,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                         if (k < VON_NEUMANN_NEIGHBORS)
                             z[k] = sz_k;
                         else
-                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                            z[k] = sz0 - (sz0 - sz_k) / rad;
                     } else {
                         h[k] = 0.0;
                         z[k] = sz0;
@@ -578,15 +576,14 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                                            eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {
                         H[k] = z[k] + h[k];
                         theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                         eliminated[k] = false;
-                    } else {
-                        eliminated[k] = true;
-                        H[k] = 0.0;
-                        theta[k] = 0.0;
-                    }
+                    } 
                 }
 
                 bool loop;
@@ -666,7 +663,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                         if (k < VON_NEUMANN_NEIGHBORS)
                             z[k] = sz_k;
                         else
-                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                            z[k] = sz0 - (sz0 - sz_k) / rad;
                     } else {
                         h[k] = 0.0;
                         z[k] = sz0;
@@ -681,14 +678,13 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                                            eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {
                         H[k] = z[k] + h[k];
                         theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                         eliminated[k] = false;
-                    } else {
-                        eliminated[k] = true;
-                        H[k] = 0.0;
-                        theta[k] = 0.0;
                     }
                 }
 
@@ -769,7 +765,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                         if (k < VON_NEUMANN_NEIGHBORS)
                             z[k] = sz_k;
                         else
-                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                            z[k] = sz0 - (sz0 - sz_k) / rad;
                     } else {
                         h[k] = 0.0;
                         z[k] = sz0;
@@ -784,15 +780,14 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                                            eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {
                         H[k] = z[k] + h[k];
                         theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                         eliminated[k] = false;
-                    } else {
-                        eliminated[k] = true;
-                        H[k] = 0.0;
-                        theta[k] = 0.0;
-                    }
+                    } 
                 }
 
                 bool loop;
@@ -872,7 +867,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                         if (k < VON_NEUMANN_NEIGHBORS)
                             z[k] = sz_k;
                         else
-                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                            z[k] = sz0 - (sz0 - sz_k) / rad;
                     } else {
                         h[k] = 0.0;
                         z[k] = sz0;
@@ -887,14 +882,13 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                                            eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {
                         H[k] = z[k] + h[k];
                         theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                         eliminated[k] = false;
-                    } else {
-                        eliminated[k] = true;
-                        H[k] = 0.0;
-                        theta[k] = 0.0;
                     }
                 }
 
@@ -975,7 +969,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                         if (k < VON_NEUMANN_NEIGHBORS)
                             z[k] = sz_k;
                         else
-                            z[k] = sz0 - (sz0 - sz_k) / sqrt(2.0);
+                            z[k] = sz0 - (sz0 - sz_k) / rad;
                     } else {
                         h[k] = 0.0;
                         z[k] = sz0;
@@ -990,15 +984,14 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+                                            eliminated[k] = true;
+                        H[k] = 0.0;
+                        theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {
                         H[k] = z[k] + h[k];
                         theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
                         eliminated[k] = false;
-                    } else {
-                        eliminated[k] = true;
-                        H[k] = 0.0;
-                        theta[k] = 0.0;
-                    }
+                    } 
                 }
 
                 bool loop;
