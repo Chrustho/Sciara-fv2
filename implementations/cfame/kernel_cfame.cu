@@ -9,10 +9,11 @@
 __constant__ int d_Xi_cfame[] = {0, -1,  0,  0,  1, -1,  1,  1, -1};
 __constant__ int d_Xj_cfame[] = {0,  0, -1,  1,  0, -1, -1,  1,  1};
 
+__constant__ int rows  = 378;
+__constant__ int cols = 517;
+
 __global__ void CfAMe_Kernel(Sciara *sciara) {
-    
-    int rows = sciara->domain->rows;
-    int cols = sciara->domain->cols;
+
 
     double *sh = sciara->substates->Sh;
     double *sh_next = sciara->substates->Sh_next;
@@ -51,8 +52,6 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
     }
 
     if (tc == 0) {
-        int gi = i;
-        int gj = j - HALO;
         int sid = ts_r * sharedWidth + (ts_c - HALO);
         
         for (int k = 0; k < NUMBER_OF_OUTFLOWS; k++) {
@@ -576,7 +575,7 @@ __global__ void CfAMe_Kernel(Sciara *sciara) {
                 eliminated[0] = false;
 
                 for (int k = 1; k < MOORE_NEIGHBORS; k++) {
-                                            eliminated[k] = true;
+                        eliminated[k] = true;
                         H[k] = 0.0;
                         theta[k] = 0.0;
                     if (z[0] + h[0] > z[k] + h[k]) {

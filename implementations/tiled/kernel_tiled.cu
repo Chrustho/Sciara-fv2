@@ -12,8 +12,6 @@ __constant__ int cols = 517;
 
 __global__ void computeOutflows_Tiled(
     Sciara *sciara){
-  int rows= sciara->domain->rows;
-  int cols= sciara->domain->cols;
 
   double *sh=sciara->substates->Sh;
   double *st=sciara->substates->ST;
@@ -180,8 +178,6 @@ __global__ void computeOutflows_Tiled(
 __global__ void massBalance_Tiled(
     Sciara *sciara) {
 
-    int rows = sciara->domain->rows;
-    int cols = sciara->domain->cols;
 
     double *sh = sciara->substates->Sh;
     double *sh_next = sciara->substates->Sh_next;

@@ -309,6 +309,75 @@ double reduceAdd(int r, int c, double *buffer)
   return sum;
 }
 
+// Kernel di riduzione: somma un array di input e scrive i risultati parziali
+__global__ void reduceKernel(const double *input, double *output, int n) {
+    extern __shared__ double sdata[];
+
+    // Indice globale del thread e indice locale
+    unsigned int tid = threadIdx.x;
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // 1. Caricamento dalla Global Memory alla Shared Memory
+    // Se l'indice è valido carichiamo il valore, altrimenti 0 (padding)
+    sdata[tid] = (i < n) ? input[i] : 0.0;
+    __syncthreads();
+
+    // 2. Riduzione in Shared Memory (Tree Reduction)
+    // Eseguiamo somme dimezzando i thread attivi ad ogni step
+    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+        if (tid < s) {
+            sdata[tid] += sdata[tid + s];
+        }
+        __syncthreads();
+    }
+
+    // 3. Scrittura del risultato parziale del blocco in Global Memory
+    // Solo il thread 0 del blocco scrive il risultato
+    if (tid == 0) {
+        output[blockIdx.x] = sdata[0];
+    }
+}
+
+double reduceAddGPU(int rows, int cols, double *d_input, double *d_temp_buffer) {
+    int n = rows * cols;
+    int threads = 256; // Dimensione del blocco (potenza di 2)
+    int blocks = (n + threads - 1) / threads;
+
+    // Buffer di input corrente (inizialmente i dati originali)
+    double *curr_input = d_input;
+    // Buffer di output corrente (usiamo il buffer temporaneo)
+    double *curr_output = d_temp_buffer;
+
+    // Loop finché non riduciamo a un singolo blocco
+    while (n > 1) {
+        // Calcolo quanti blocchi servono per questa iterazione
+        blocks = (n + threads - 1) / threads;
+
+        // Shared memory size: sizeof(double) * threads
+        reduceKernel<<<blocks, threads, threads * sizeof(double)>>>(curr_input, curr_output, n);
+        
+        // Per il prossimo step, l'input è l'output appena calcolato
+        // Nota: stiamo riducendo l'array 'curr_output' che ora ha dimensione 'blocks'
+        n = blocks;
+        curr_input = curr_output; 
+        
+        // Se rimangono più blocchi, il prossimo output sarà scritto all'inizio del buffer temporaneo
+        // (Possiamo riutilizzare d_temp_buffer in modo intelligente o usarne uno di swap, 
+        //  ma per semplicità qui assumiamo che d_temp_buffer sia abbastanza grande da gestirsi 
+        //  o riduciamo in-place se i dati originali non servono, 
+        //  MA qui stiamo sovrascrivendo d_temp_buffer che è sicuro).
+        
+        // ATTENZIONE: Per evitare di sovrascrivere dati necessari nello stesso array durante 
+        // la riduzione ricorsiva senza doppio buffer, in casi semplici si riusa lo stesso puntatore 
+        // dato che leggiamo indici alti e scriviamo indici bassi (0..blocks).
+    }
+
+    // Alla fine, il risultato è nel primo elemento di curr_output
+    double result;
+    cudaMemcpy(&result, curr_output, sizeof(double), cudaMemcpyDeviceToHost);
+    return result;
+}
+
 
 
 int main(int argc, char **argv)
@@ -321,7 +390,7 @@ int main(int argc, char **argv)
   int max_steps = atoi(argv[MAX_STEPS_ID]);
   loadConfiguration(argv[INPUT_PATH_ID], sciara);
 
-
+/*
   int *d_Xi, *d_Xj;
   cudaMallocManaged((void**)&d_Xi, MOORE_NEIGHBORS * sizeof(int));
   cudaMallocManaged((void**)&d_Xj, MOORE_NEIGHBORS * sizeof(int));
@@ -329,7 +398,7 @@ int main(int argc, char **argv)
   cudaMemcpy(d_Xj, sciara->X->Xj, MOORE_NEIGHBORS * sizeof(int), cudaMemcpyHostToDevice);
   sciara->X->Xi = d_Xi;
   sciara->X->Xj = d_Xj;
-
+*/
   int rows = sciara->domain->rows;
   int cols = sciara->domain->cols;
 
@@ -360,6 +429,9 @@ int main(int argc, char **argv)
 
   size_t sharedMem_halo_outflows = sharedSize * 3 * sizeof(double);
   size_t sharedMem_halo_massBalance = sharedSize * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
+
+  double *d_reduce_temp;
+  cudaMalloc(&d_reduce_temp, ((rows * cols) / 128 + 1) * sizeof(double));
   
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
@@ -375,6 +447,15 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
 
+    computeOutflows_Global<<<grid,block>>>(sciara);
+    cudaDeviceSynchronize();
+    cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
+    cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
+    massBalance_Global<<<grid, block>>>(sciara);
+    cudaDeviceSynchronize();
+   
+
+/*
     computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sciara);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
@@ -382,7 +463,7 @@ int main(int argc, char **argv)
     cudaDeviceSynchronize();
 
 
-/*
+
     int sharedWidth_cfame = block.x + 2;  // HALO = 1
     int sharedHeight_cfame = block.y + 2;
     int sharedSize_cfame = sharedWidth_cfame * sharedHeight_cfame;
@@ -416,19 +497,19 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, sizeBuffer, cudaMemcpyDeviceToDevice);
 
-/*
+
     boundaryConditions_Global<<<grid, block>>>(sciara);
     cudaDeviceSynchronize();
 
 
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-*/
+
 
     if (sciara->simulation->step % reduceInterval == 0)
     {
-      total_current_lava = reduceAdd(rows, cols, sciara->substates->Sh);
-     // printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
+      total_current_lava = reduceAddGPU(rows, cols, sciara->substates->Sh, d_reduce_temp);     
+      printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
     }
   }
 
@@ -444,9 +525,7 @@ int main(int argc, char **argv)
   saveConfiguration(argv[OUTPUT_PATH_ID], sciara);
 
   printf("Releasing memory...\n");
-
-  cudaFree(d_Xi);
-  cudaFree(d_Xj);
+  cudaFree(d_reduce_temp);
 
   finalize(sciara);
 

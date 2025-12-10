@@ -9,10 +9,11 @@
 __constant__ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; 
 __constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; 
 
-__global__ void CfAMo_Kernel(Sciara *sciara) {
 
-    int rows = sciara->domain->rows;
-    int cols = sciara->domain->cols;
+__constant__ int rows  = 378;
+__constant__ int cols = 517;
+
+__global__ void CfAMo_Kernel(Sciara *sciara) {
 
     double *sh = sciara->substates->Sh;
     double *st = sciara->substates->ST;
@@ -49,6 +50,7 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
 
     bool is_valid_sim_cell = (i >= 0 && i < rows && j >= 0 && j < cols);
 
+    // 1. Caricamento dati
     if (is_valid_sim_cell) {
         sh_s[tid_s] = sh[idx];
         sz_s[tid_s] = sz[idx];
@@ -59,15 +61,17 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
         st_s[tid_s] = 0.0;
     }
 
+    // SYNC 1: Assicura che la shared memory sia caricata
+    __syncthreads();
+
+    // 2. Inizializzazione Accumulatori e calcolo locale
     sh_accum[tid_s] = 0.0;
     en_accum[tid_s] = 0.0;
     
-    __syncthreads(); 
-
     double calculated_flows[8];
     #pragma unroll
     for(int k=0; k<8; k++) calculated_flows[k] = 0.0;
-    
+
     double h0 = 0.0;
     double t0 = 0.0;
 
@@ -75,8 +79,8 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
         h0 = sh_s[tid_s]; 
         
         if (h0 > 0.0) {
-            t0 = st_s[tid_s]; // Lettura da Shared
-            double sz0 = sz_s[tid_s]; // Lettura da Shared
+            t0 = st_s[tid_s]; 
+            double sz0 = sz_s[tid_s];
             
             bool eliminated[MOORE_NEIGHBORS];
             double z[MOORE_NEIGHBORS];
@@ -88,13 +92,12 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
 
             double rr = pow(10.0, _a + _b * t0);
             double hc = pow(10.0, _c + _d * t0);
-
             double rad = sqrt(2.0);
 
             for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+                // ... (calcolo vicini invariato) ...
                 int ntc = tc + _Xj[k];
                 int ntr = tr + _Xi[k];
-                
                 double sz_k, h_k;
 
                 if (ntc >= 0 && ntc < sharedWidth && ntr >= 0 && ntr < sharedHeight) {
@@ -115,16 +118,14 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                 }
                 
                 h[k] = h_k;
-                
                 if (k < VON_NEUMANN_NEIGHBORS) z[k] = sz_k;
                 else z[k] = sz0 - (sz0 - sz_k) / rad;
-                
                 w[k] = pc;
                 Pr[k] = rr;
             }
 
+            // ... (Algoritmo di minimizzazione invariato) ...
             H[0] = z[0]; theta[0] = 0.0; eliminated[0] = false;
-
             for (int k = 1; k < MOORE_NEIGHBORS; k++) {
                 if (z[0] + h[0] > z[k] + h[k]) {
                     H[k] = z[k] + h[k];
@@ -152,7 +153,9 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                     }
                 }
             } while (loop);
-
+            
+            // RIMOSSO __syncthreads() QUI PER EVITARE DEADLOCK
+            
             for (int k = 1; k < MOORE_NEIGHBORS; k++) {
                 if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
                     calculated_flows[k-1] = Pr[k] * (avg - H[k]);
@@ -161,8 +164,14 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
         }
     }
 
+    // SYNC 2: Barriera fondamentale. 
+    // Assicura che tutti abbiano finito di calcolare i flussi LOCALI e 
+    // che sh_accum sia stato resettato a 0.0 da tutti.
+    __syncthreads();
+
     double total_outflow = 0.0;
 
+    // 3. Scatter Loop (Scrittura negli accumulatori dei vicini)
     for (int step = 1; step < MOORE_NEIGHBORS; step++) { 
         
         double my_flow = calculated_flows[step - 1]; 
@@ -171,12 +180,11 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
         int tn_c = tc + _Xj[step];
         int tn_r = tr + _Xi[step];
 
+        // Scriviamo nella Shared Memory del vicino
         if (tn_c >= 0 && tn_c < sharedWidth && tn_r >= 0 && tn_r < sharedHeight) {
-            
             int tid_s_neigh = tn_r * sharedWidth + tn_c;
-
             if (my_flow > 0.0) {
-                
+                // Non atomico: sicuro solo grazie al __syncthreads() alla fine del loop
                 double current_mass = sh_accum[tid_s_neigh];
                 sh_accum[tid_s_neigh] = current_mass + my_flow;
 
@@ -184,6 +192,10 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                 en_accum[tid_s_neigh] = current_energy + (my_flow * t0);
             }
         }
+        
+        // SYNC 3: Obbligatorio dentro il loop
+        // Assicura che tutti abbiano finito di scrivere per la direzione 'step' 
+        // prima di passare alla direzione successiva. Evita race condition sugli accumulatori.
         __syncthreads();
     }
 

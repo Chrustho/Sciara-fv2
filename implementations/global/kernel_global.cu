@@ -6,15 +6,13 @@
 __constant__ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; // Xj: Moore neighborhood row coordinates (see below)
 __constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neighborhood col coordinates (see below)
 
-
+__constant__ int rows  = 378;
+__constant__ int cols = 517;
 
 
 __global__ void  computeOutflows_Global(
     Sciara *sciara)
 {
-  // Parametri del dominio
-  int rows= sciara->domain->rows;
-  int cols= sciara->domain->cols;
 
 
 
@@ -150,9 +148,6 @@ __global__ void  computeOutflows_Global(
 
 __global__ void massBalance_Global(Sciara *sciara)        
 {
-  // Parametri del dominio
-  int rows = sciara->domain->rows;
-  int cols = sciara->domain->cols;
 
 
   // Buffers
@@ -217,9 +212,6 @@ __global__ void computeNewTemperatureAndSolidification_Global(
     Sciara *sciara         
 )
 {
-    // Parametri del dominio
-    int rows= sciara->domain->rows;
-    int cols= sciara->domain->cols;
 
     // Parametri
 
@@ -240,7 +232,6 @@ __global__ void computeNewTemperatureAndSolidification_Global(
     double *sz=sciara->substates->Sz;
     double *sz_next=sciara->substates->Sz_next;
 
-    double *mf=sciara->substates->Mf;
     double *mhs=sciara->substates->Mhs;
     bool *mb=sciara->substates->Mb;
 
@@ -290,8 +281,6 @@ __global__ void computeNewTemperatureAndSolidification_Global(
 
 __global__ void boundaryConditions_Global(Sciara *sciara)
 {
-    int rows = sciara->domain->rows;
-    int cols = sciara->domain->cols;
     
     double *sh = sciara->substates->Sh;
     double *st = sciara->substates->ST;
