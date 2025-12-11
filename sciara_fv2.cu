@@ -419,15 +419,18 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-/*
+
+    /*
     computeOutflows_Global<<<grid,block>>>(sciara);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Global<<<grid, block>>>(sciara);
     cudaDeviceSynchronize();
-   
-*/
+    cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
+    cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
+   */
+
     /*
 
     computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sciara);
@@ -448,6 +451,7 @@ int main(int argc, char **argv)
     */
 
 
+    
     int sharedWidth_cfamo = block.x + 2 * HALO; // Assicurati di usare HALO corretto (es. 1)
     int sharedHeight_cfamo = block.y + 2 * HALO;
     int sharedSize_cfamo = sharedWidth_cfamo * sharedHeight_cfamo;
