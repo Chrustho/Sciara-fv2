@@ -3,26 +3,11 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled/kernel_tiled.cuh"
+#include "../../constants.cuh"  // Include solo le dichiarazioni extern
 
-__constant__ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; // Xj: Moore neighborhood row coordinates (see below)
-__constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neighborhood col coordinates (see below)
-
-__constant__ int rows  = 378;
-__constant__ int cols = 517;
 
 __global__ void computeOutflows_Tiled(
-    Sciara *sciara){
-
-  double *sh=sciara->substates->Sh;
-  double *st=sciara->substates->ST;
-  double *sz= sciara->substates->Sz;
-  double *mf= sciara->substates->Mf;
-
-  double _a= sciara->parameters->a;
-  double _b=sciara->parameters->b;
-  double _c=sciara->parameters->c;
-  double _d=sciara->parameters->d;
-  double pc=sciara->parameters->Pc;
+            double *sh, double *st, double *sz, double *mf){
 
   int blockSize = blockDim.x * blockDim.y;
 
@@ -63,24 +48,24 @@ __global__ void computeOutflows_Tiled(
   double h[MOORE_NEIGHBORS];
   double H[MOORE_NEIGHBORS];
   double theta[MOORE_NEIGHBORS];
-  double Pr[MOORE_NEIGHBORS]; 
-  double w[MOORE_NEIGHBORS];
 
   double sz0 = sz_s[tid];
   double T_val = st_s[tid]; 
 
-  double rr = pow(10.0, _a + _b * T_val);
-  double hc = pow(10.0, _c + _d * T_val);
+  double rr = pow(10.0, d_a + d_b * T_val);
+  double hc = pow(10.0, d_c + d_d * T_val);
 
   double rad = sqrt(2.0);
+  double w =d_pc;
+  double pr= rr;
 
   for (int k = 0; k < MOORE_NEIGHBORS; k++)
   {
-    int ni = i + _Xi[k];
-    int nj = j + _Xj[k];
+    int ni = i + d_Xi[k];
+    int nj = j + d_Xj[k];
 
-    int trn = tr + _Xi[k];
-    int tcn = tc+ _Xj[k];
+    int trn = tr + d_Xi[k];
+    int tcn = tc+ d_Xj[k];
 
     bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
 
@@ -104,9 +89,6 @@ __global__ void computeOutflows_Tiled(
       else
         z[k] = sz0 - (sz0 - sz_k) / rad; 
     }
-
-    w[k] = pc;
-    Pr[k] = rr;
   }
 
   H[0] = z[0];
@@ -121,7 +103,7 @@ __global__ void computeOutflows_Tiled(
     if (z[0] + h[0] > z[k] + h[k])
     {
       H[k] = z[k] + h[k];
-      theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+      theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w);
       eliminated[k] = false;
     }
   }
@@ -168,7 +150,7 @@ __global__ void computeOutflows_Tiled(
 
     if (!eliminated[k] && h[0] > hc * cos(theta[k]))
     {
-      mf[mf_idx] = Pr[k] * (avg - H[k]);
+      mf[mf_idx] = pr * (avg - H[k]);
     }
   }
 
@@ -176,14 +158,7 @@ __global__ void computeOutflows_Tiled(
 
 
 __global__ void massBalance_Tiled(
-    Sciara *sciara) {
-
-
-    double *sh = sciara->substates->Sh;
-    double *sh_next = sciara->substates->Sh_next;
-    double *st = sciara->substates->ST;
-    double *st_next = sciara->substates->ST_next;
-    double *mf = sciara->substates->Mf;
+    double *sh, double *sh_next, double *st, double *st_next, double *mf) {
 
     int blockSize = blockDim.x * blockDim.y;
 
@@ -227,8 +202,8 @@ __global__ void massBalance_Tiled(
 
     for (int n = 1; n < MOORE_NEIGHBORS; n++)
     {
-        int ni = i + _Xi[n];
-        int nj = j + _Xj[n];
+        int ni = i + d_Xi[n];
+        int nj = j + d_Xj[n];
 
         if (ni < 0 || ni >= rows || nj < 0 || nj >= cols)continue;
 
@@ -239,8 +214,8 @@ __global__ void massBalance_Tiled(
 
         int in_layer = inflowsIndices[n - 1];
         
-        int trn = tr + _Xi[n];
-        int tcn = tc + _Xj[n];
+        int trn = tr + d_Xi[n];
+        int tcn = tc + d_Xj[n];
         
         bool in_shared = (trn >= 0 && trn < (int)blockDim.y && 
                           tcn >= 0 && tcn < (int)blockDim.x);

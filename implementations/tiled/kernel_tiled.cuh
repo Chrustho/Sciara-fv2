@@ -5,11 +5,11 @@
 
 
 __global__ void computeOutflows_Tiled(
-    Sciara *sciara);
+        double *sh, double *st, double *sz, double *mf);
 
 
 __global__ void massBalance_Tiled(
-    Sciara *sciara);  
+    double *sh, double *sh_next, double *st, double *st_next, double *mf);  
 
 
 __global__ void computeNewTemperatureAndSolidification_Tiled();

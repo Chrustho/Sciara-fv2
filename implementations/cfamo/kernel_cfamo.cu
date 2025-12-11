@@ -1,32 +1,14 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled_with_halos/kernel_tiled_with_halo.cuh"
+#include "../../constants.cuh"  // Include solo le dichiarazioni extern
 
 #ifndef HALO
 #define HALO 1
 #endif
 
-__constant__ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; 
-__constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; 
 
-
-__constant__ int rows  = 378;
-__constant__ int cols = 517;
-
-__global__ void CfAMo_Kernel(Sciara *sciara) {
-
-    double *sh = sciara->substates->Sh;
-    double *st = sciara->substates->ST;
-    double *sz = sciara->substates->Sz;
-    
-    double *sh_next = sciara->substates->Sh_next;
-    double *st_next = sciara->substates->ST_next;
-
-    double _a = sciara->parameters->a;
-    double _b = sciara->parameters->b;
-    double _c = sciara->parameters->c;
-    double _d = sciara->parameters->d;
-    double pc = sciara->parameters->Pc;
+__global__ void CfAMo_Kernel(double *sh, double *st, double *sz, double *sh_next, double *st_next) {
 
     int sharedWidth = blockDim.x; 
     int sharedHeight = blockDim.y;
@@ -84,16 +66,17 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
             double h[MOORE_NEIGHBORS];
             double H[MOORE_NEIGHBORS];
             double theta[MOORE_NEIGHBORS];
-            double Pr[MOORE_NEIGHBORS];
-            double w[MOORE_NEIGHBORS];
 
-            double rr = pow(10.0, _a + _b * t0);
-            double hc = pow(10.0, _c + _d * t0);
+            double rr = pow(10.0, d_a + d_b * t0);
+            double hc = pow(10.0, d_c + d_d * t0);
             double rad = sqrt(2.0);
 
+            double w =d_pc;
+            double pr= rr;
+
             for (int k = 0; k < MOORE_NEIGHBORS; k++) {
-                int ntc = tc + _Xj[k];
-                int ntr = tr + _Xi[k];
+                int ntc = tc + d_Xj[k];
+                int ntr = tr + d_Xi[k];
                 double sz_k, h_k;
 
                 if (ntc >= 0 && ntc < sharedWidth && ntr >= 0 && ntr < sharedHeight) {
@@ -101,8 +84,8 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                     h_k = sh_s[nidx_s];
                     sz_k = sz_s[nidx_s];
                 } else {
-                    int ni = i + _Xi[k];
-                    int nj = j + _Xj[k];
+                    int ni = i + d_Xi[k];
+                    int nj = j + d_Xj[k];
                     if (ni >= 0 && ni < rows && nj >= 0 && nj < cols) {
                         int nidx = ni * cols + nj;
                         h_k = sh[nidx];
@@ -116,15 +99,14 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
                 h[k] = h_k;
                 if (k < VON_NEUMANN_NEIGHBORS) z[k] = sz_k;
                 else z[k] = sz0 - (sz0 - sz_k) / rad;
-                w[k] = pc;
-                Pr[k] = rr;
+
             }
 
             H[0] = z[0]; theta[0] = 0.0; eliminated[0] = false;
             for (int k = 1; k < MOORE_NEIGHBORS; k++) {
                 if (z[0] + h[0] > z[k] + h[k]) {
                     H[k] = z[k] + h[k];
-                    theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+                    theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w);
                     eliminated[k] = false;
                 } else {
                     eliminated[k] = true; H[k] = 0.0; theta[k] = 0.0;
@@ -152,7 +134,7 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
             
             for (int k = 1; k < MOORE_NEIGHBORS; k++) {
                 if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
-                    calculated_flows[k-1] = Pr[k] * (avg - H[k]);
+                    calculated_flows[k-1] = pr* (avg - H[k]);
                 }
             }
         }
@@ -167,8 +149,8 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
         double my_flow = calculated_flows[step - 1]; 
         total_outflow += my_flow;
 
-        int tn_c = tc + _Xj[step];
-        int tn_r = tr + _Xi[step];
+        int tn_c = tc + d_Xj[step];
+        int tn_r = tr + d_Xi[step];
 
         if (tn_c >= 0 && tn_c < sharedWidth && tn_r >= 0 && tn_r < sharedHeight) {
             int tid_s_neigh = tn_r * sharedWidth + tn_c;

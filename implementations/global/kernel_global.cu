@@ -1,37 +1,12 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "kernel_global.cuh"
-
-
-__constant__ int _Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1}; // Xj: Moore neighborhood row coordinates (see below)
-__constant__ int _Xj[] = {0,  0, -1,  1,  0, -1, -1,  1,  1}; // Xj: Moore neighborhood col coordinates (see below)
-
-__constant__ int rows  = 378;
-__constant__ int cols = 517;
+#include "../../constants.cuh" 
 
 
 __global__ void  computeOutflows_Global(
-    Sciara *sciara)
+    double *sh, double *st, double *sz, double *mf)
 {
-
-
-
-  // Buffers
-  double *sh=sciara->substates->Sh;
-  double *st=sciara->substates->ST;
-  double *sz= sciara->substates->Sz;
-
-  // Parametri
-  double *mf=sciara->substates->Mf;
-  double pc=sciara->parameters->Pc;
-
-  // a, b, c, d
-  double _a= sciara->parameters->a;
-  double _b=sciara->parameters->b;
-  double _c=sciara->parameters->c;
-  double _d=sciara->parameters->d;
-
-
 
   int j = blockIdx.x * blockDim.x + threadIdx.x;
   int i = blockIdx.y * blockDim.y + threadIdx.y;
@@ -48,21 +23,21 @@ __global__ void  computeOutflows_Global(
   double h[MOORE_NEIGHBORS];
   double H[MOORE_NEIGHBORS];
   double theta[MOORE_NEIGHBORS];
-  double Pr[MOORE_NEIGHBORS]; 
-  double w[MOORE_NEIGHBORS];
 
   double sz0 = sz[idx];
   double T_val = st[idx]; 
 
-  double rr = pow(10.0, _a + _b * T_val);
-  double hc = pow(10.0, _c + _d * T_val);
+  double rr = pow(10.0, d_a +d_b * T_val);
+  double hc = pow(10.0, d_c + d_d * T_val);
 
   double rad= sqrt(2.0);
+  double w= d_pc;
+  double pr= rr;
 
   for (int k = 0; k < MOORE_NEIGHBORS; k++)
   {
-    int ni = i + _Xi[k];
-    int nj = j + _Xj[k];
+    int ni = i + d_Xi[k];
+    int nj = j + d_Xj[k];
 
     bool is_valid = (ni >= 0 && ni < rows && nj >= 0 && nj < cols);
 
@@ -76,9 +51,6 @@ __global__ void  computeOutflows_Global(
       else
         z[k] = sz0 - (sz0 - sz_k) / rad; 
     } 
-
-    w[k] = pc; 
-    Pr[k] = rr;
   }
 
   H[0] = z[0];
@@ -94,7 +66,7 @@ __global__ void  computeOutflows_Global(
     if (z[0] + h[0] > z[k] + h[k])
     {
       H[k] = z[k] + h[k];
-      theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w[k]);
+      theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w);
       eliminated[k] = false;
     }
   }
@@ -140,22 +112,15 @@ __global__ void  computeOutflows_Global(
 
     if (!eliminated[k] && h[0] > hc * cos(theta[k]))
     {
-      mf[mf_idx] = Pr[k] * (avg - H[k]);
+      mf[mf_idx] = pr * (avg - H[k]);
     }
   }
 }
 
 
-__global__ void massBalance_Global(Sciara *sciara)        
+__global__ void massBalance_Global(double *sh, double *sh_next, double *st, double *st_next, double *mf)        
 {
 
-
-  // Buffers
-  double *sh = sciara->substates->Sh;
-  double *sh_next = sciara->substates->Sh_next;
-  double *st = sciara->substates->ST;
-  double *st_next = sciara->substates->ST_next;
-  double *mf = sciara->substates->Mf;
 
   int j = blockIdx.x * blockDim.x + threadIdx.x;
   int i = blockIdx.y * blockDim.y + threadIdx.y;
@@ -176,8 +141,8 @@ __global__ void massBalance_Global(Sciara *sciara)
 
   for (int n = 1; n < MOORE_NEIGHBORS; n++)
   {
-    int ni = i + _Xi[n];
-    int nj = j + _Xj[n];
+    int ni = i + d_Xi[n];
+    int nj = j + d_Xj[n];
 
     if (ni < 0 || ni >= rows || nj < 0 || nj >= cols)
     {
@@ -209,74 +174,42 @@ __global__ void massBalance_Global(Sciara *sciara)
 
 
 __global__ void computeNewTemperatureAndSolidification_Global(
-    Sciara *sciara         
+        double* __restrict__ sh, double*  __restrict__ sh_next, double* __restrict__ st, double* __restrict__ st_next, double* __restrict__ sz, double* __restrict__ sz_next, double* __restrict__ mhs, const bool *__restrict__ mb         
 )
 {
-
-    // Parametri
-
-    double pepsilon=sciara->parameters->Pepsilon;
-    double psigma=sciara->parameters->Psigma;
-    double pclock=sciara->parameters->Pclock;
-    double pcool=sciara->parameters->Pcool;
-    double prho=sciara->parameters->Prho;
-    double pcv=sciara->parameters->Pcv;
-    double pac=sciara->parameters->Pac;
-    double ptsol=sciara->parameters->PTsol;
-
-    // Buffers
-    double *sh=sciara->substates->Sh;
-    double *sh_next=sciara->substates->Sh_next;
-    double *st= sciara->substates->ST;
-    double *st_next=sciara->substates->ST_next;
-    double *sz=sciara->substates->Sz;
-    double *sz_next=sciara->substates->Sz_next;
-
-    double *mhs=sciara->substates->Mhs;
-    bool *mb=sciara->substates->Mb;
-
     int j = blockIdx.x * blockDim.x + threadIdx.x;
     int i = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (i >= rows|| j >= cols) return;
+    if (i >= rows || j >= cols) return;
 
     int idx = i * cols + j;
 
     double h = sh[idx];
-    bool is_border = mb[idx];
     double T = st[idx];
     double z = sz[idx];
+    
+    double h_out = h;
+    double T_out = T;
+    double z_out = z;
 
-    sciara->substates->Sz_next[idx] = z;
-    sciara->substates->Sh_next[idx] = h;
-    sciara->substates->ST_next[idx] = T;
-
-    if (h > 0.0 && !is_border)
-    {
-        double numerator = 3.0 * pow(T, 3.0) * pepsilon * psigma * pclock * pcool;
-        double denominator = prho * pcv * h * pac;
-        
-        double aus = 1.0 + (numerator / denominator);
-
-        double nT = T / pow(aus, 1.0/3.0);
-
-        if (nT > ptsol) 
-        {
-            st_next[idx] = nT;
-        } 
-        else 
-        {   
-            sz_next[idx] = z + h;   
-            sh_next[idx] = 0.0;     
-            st_next[idx] = ptsol;   
-            
-            mhs[idx] = mhs[idx] + h;
+    if (h > 0.0 && !mb[idx]) {
+        double T3 = T * T * T;
+        double aus = 1.0 + (d_temp_factor * T3) / (d_temp_divisor * h);
+        double nT = T / pow(aus, 1.0 / 3.0);  // Formula originale
+        if (nT > d_ptsol) {
+            T_out = nT;
+        } else {
+            z_out = z + h;
+            h_out = 0.0;
+            T_out = d_ptsol;
+            mhs[idx] += h;
         }
     }
+
+    sh_next[idx] = h_out;
+    st_next[idx] = T_out;
+    sz_next[idx] = z_out;
 }
-
-
-
 
 
 __global__ void boundaryConditions_Global(Sciara *sciara)
