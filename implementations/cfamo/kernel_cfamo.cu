@@ -92,7 +92,6 @@ __global__ void CfAMo_Kernel(Sciara *sciara) {
             double rad = sqrt(2.0);
 
             for (int k = 0; k < MOORE_NEIGHBORS; k++) {
-                // ... (calcolo vicini invariato) ...
                 int ntc = tc + _Xj[k];
                 int ntr = tr + _Xi[k];
                 double sz_k, h_k;
