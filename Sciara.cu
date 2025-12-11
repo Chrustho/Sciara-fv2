@@ -120,7 +120,7 @@ void init(Sciara*& sciara)
     sciara->X->Xj[n] = _Xj[n];
   }
 
-  sciara->substates = new Substates; //Substates allocation is done when the confiugration is loaded
+  sciara->substates = new Substates; 
   sciara->parameters = new Parameters;
   sciara->simulation = new Simulation;
 }

@@ -309,7 +309,6 @@ double reduceAdd(int r, int c, double *buffer)
   return sum;
 }
 
-// Kernel di riduzione: somma un array di input e scrive i risultati parziali
 __global__ void reduceKernel(const double *input, double *output, int n) {
     extern __shared__ double sdata[];
 
