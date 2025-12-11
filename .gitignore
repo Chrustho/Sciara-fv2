@@ -2,6 +2,7 @@ main
 *.o
 *.ncu-rep
 *.xml
+*.asc
 sciara_cuda
 Makefile
 
