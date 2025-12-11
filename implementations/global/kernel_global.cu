@@ -136,7 +136,7 @@ __global__ void  computeOutflows_Global(
     int outflow_idx = k - 1; 
     int mf_idx = (outflow_idx * rows * cols) + idx;
 
-    mf[idx]=0.0;
+    mf[mf_idx]=0.0;
 
     if (!eliminated[k] && h[0] > hc * cos(theta[k]))
     {

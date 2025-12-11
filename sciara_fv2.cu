@@ -446,7 +446,7 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-
+/*
     computeOutflows_Global<<<grid,block>>>(sciara);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
@@ -455,7 +455,7 @@ int main(int argc, char **argv)
     cudaDeviceSynchronize();
    
 
-/*
+
     computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sciara);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
@@ -471,7 +471,7 @@ int main(int argc, char **argv)
 
     CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sciara);
     cudaDeviceSynchronize();
-
+*/
 
     int sharedWidth_cfamo = block.x + 2 * HALO; // Assicurati di usare HALO corretto (es. 1)
     int sharedHeight_cfamo = block.y + 2 * HALO;
@@ -481,10 +481,11 @@ int main(int argc, char **argv)
     // 1x Sh + 1x St + 1x Sz + 8x Mf (un layer per ogni direzione)
     // Totale = 11 layer di double
     size_t sharedMemSize_CfAMo = sharedSize_cfamo * 5 * sizeof(double);
+    dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sciara);
     cudaDeviceSynchronize();
-*/
+
 
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
