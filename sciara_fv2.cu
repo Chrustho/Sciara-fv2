@@ -313,17 +313,12 @@ double reduceAdd(int r, int c, double *buffer)
 __global__ void reduceKernel(const double *input, double *output, int n) {
     extern __shared__ double sdata[];
 
-    // Indice globale del thread e indice locale
     unsigned int tid = threadIdx.x;
     unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // 1. Caricamento dalla Global Memory alla Shared Memory
-    // Se l'indice è valido carichiamo il valore, altrimenti 0 (padding)
     sdata[tid] = (i < n) ? input[i] : 0.0;
     __syncthreads();
 
-    // 2. Riduzione in Shared Memory (Tree Reduction)
-    // Eseguiamo somme dimezzando i thread attivi ad ogni step
     for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
         if (tid < s) {
             sdata[tid] += sdata[tid + s];
@@ -331,8 +326,6 @@ __global__ void reduceKernel(const double *input, double *output, int n) {
         __syncthreads();
     }
 
-    // 3. Scrittura del risultato parziale del blocco in Global Memory
-    // Solo il thread 0 del blocco scrive il risultato
     if (tid == 0) {
         output[blockIdx.x] = sdata[0];
     }
@@ -340,39 +333,20 @@ __global__ void reduceKernel(const double *input, double *output, int n) {
 
 double reduceAddGPU(int rows, int cols, double *d_input, double *d_temp_buffer) {
     int n = rows * cols;
-    int threads = 256; // Dimensione del blocco (potenza di 2)
+    int threads = 256; 
     int blocks = (n + threads - 1) / threads;
 
-    // Buffer di input corrente (inizialmente i dati originali)
     double *curr_input = d_input;
-    // Buffer di output corrente (usiamo il buffer temporaneo)
     double *curr_output = d_temp_buffer;
 
-    // Loop finché non riduciamo a un singolo blocco
     while (n > 1) {
-        // Calcolo quanti blocchi servono per questa iterazione
         blocks = (n + threads - 1) / threads;
 
-        // Shared memory size: sizeof(double) * threads
         reduceKernel<<<blocks, threads, threads * sizeof(double)>>>(curr_input, curr_output, n);
-        
-        // Per il prossimo step, l'input è l'output appena calcolato
-        // Nota: stiamo riducendo l'array 'curr_output' che ora ha dimensione 'blocks'
         n = blocks;
         curr_input = curr_output; 
-        
-        // Se rimangono più blocchi, il prossimo output sarà scritto all'inizio del buffer temporaneo
-        // (Possiamo riutilizzare d_temp_buffer in modo intelligente o usarne uno di swap, 
-        //  ma per semplicità qui assumiamo che d_temp_buffer sia abbastanza grande da gestirsi 
-        //  o riduciamo in-place se i dati originali non servono, 
-        //  MA qui stiamo sovrascrivendo d_temp_buffer che è sicuro).
-        
-        // ATTENZIONE: Per evitare di sovrascrivere dati necessari nello stesso array durante 
-        // la riduzione ricorsiva senza doppio buffer, in casi semplici si riusa lo stesso puntatore 
-        // dato che leggiamo indici alti e scriviamo indici bassi (0..blocks).
     }
 
-    // Alla fine, il risultato è nel primo elemento di curr_output
     double result;
     cudaMemcpy(&result, curr_output, sizeof(double), cudaMemcpyDeviceToHost);
     return result;
@@ -454,7 +428,7 @@ int main(int argc, char **argv)
     massBalance_Global<<<grid, block>>>(sciara);
     cudaDeviceSynchronize();
    
-
+*/
 
     computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sciara);
     cudaDeviceSynchronize();
@@ -471,7 +445,7 @@ int main(int argc, char **argv)
 
     CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sciara);
     cudaDeviceSynchronize();
-*/
+/*
 
     int sharedWidth_cfamo = block.x + 2 * HALO; // Assicurati di usare HALO corretto (es. 1)
     int sharedHeight_cfamo = block.y + 2 * HALO;
@@ -486,7 +460,7 @@ int main(int argc, char **argv)
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sciara);
     cudaDeviceSynchronize();
 
-
+*/
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
 
