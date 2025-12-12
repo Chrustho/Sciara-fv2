@@ -446,9 +446,6 @@ __global__ void massBalance_Tiled_wH(
         int ni = i + d_Xi[n];
         int nj = j + d_Xj[n];
 
-        if (ni < 0 || ni >= rows || nj < 0 || nj >= cols)
-            continue;
-
         int ts_r_n = ts_r + d_Xi[n];
         int ts_c_n = ts_c + d_Xj[n];
         int tid_s_n = ts_r_n * sharedWidth + ts_c_n;

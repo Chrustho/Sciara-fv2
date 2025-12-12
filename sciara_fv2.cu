@@ -474,23 +474,23 @@ int main(int argc, char **argv)
     *et+=pclok;
     (*step)++; 
 
-/*
+
     emitLava_global(sciara, sh, sh_next, st_next);
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
     // Per gli altri
-*/
 
-    emitLava_global_inplace(sciara,sh,st); // per cfame e cfamo
 
-/*
+ // emitLava_global_inplace(sciara,sh,st); // per cfame e cfamo
+
+
     computeOutflows_Global<<<grid,block>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Global<<<grid, block>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
-*/
+
 
     
 /*
@@ -499,19 +499,20 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Tiled_wH<<<grid, block,sharedMem_halo_massBalance>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
-*/
+
 
 
 /*
     CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sh,st,sz,sh_next,st_next);
     cudaDeviceSynchronize();
-*/
+
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sh,st,sz,sh_next,st_next);
     cudaDeviceSynchronize();
-
+*/
     
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
+    
 
     computeNewTemperatureAndSolidification_Global<<<grid, block>>>(sh, sh_next, st, st_next, sz, sz_next, mhs, mb);
     cudaDeviceSynchronize();
@@ -519,10 +520,12 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, sizeBuffer, cudaMemcpyDeviceToDevice);
 
+
+
     if (sciara->simulation->step % reduceInterval == 0)
     {
       total_current_lava = reduceAddGPU(rows, cols, sciara->substates->Sh, d_reduce_temp);     
-      //printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
+      printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
     }
   }
 
