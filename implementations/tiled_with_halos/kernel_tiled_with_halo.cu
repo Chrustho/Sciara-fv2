@@ -1,7 +1,7 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled_with_halos/kernel_tiled_with_halo.cuh"
-#include "../../constants.cuh"  // Include solo le dichiarazioni extern
+#include "../../constants.cuh"  
 
 
 #define HALO 1  
@@ -30,14 +30,12 @@ __global__ void computeOutflows_Tiled_wH(
     int ts_r = tr + HALO;  
     int tid_s = ts_r * sharedWidth + ts_c;
 
-    // CARICAMENTO TILE CENTRALE 
     if (i < rows && j < cols) {
         sh_s[tid_s] = sh[idx];
         st_s[tid_s] = st[idx];
         sz_s[tid_s] = sz[idx];
     }
 
-    //  CARICAMENTO HALO 
     
     // Halo sinistro
     if (tc == 0) {

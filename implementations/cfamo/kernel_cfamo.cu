@@ -1,7 +1,7 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled_with_halos/kernel_tiled_with_halo.cuh"
-#include "../../constants.cuh"  // Include solo le dichiarazioni extern
+#include "../../constants.cuh"  
 
 #ifndef HALO
 #define HALO 1

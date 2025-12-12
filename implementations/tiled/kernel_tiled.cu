@@ -3,7 +3,7 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled/kernel_tiled.cuh"
-#include "../../constants.cuh"  // Include solo le dichiarazioni extern
+#include "../../constants.cuh" 
 
 
 __global__ void computeOutflows_Tiled(

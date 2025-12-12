@@ -11,6 +11,7 @@
 #include "implementations/cfame/kernel_cfame.cuh"
 #include "implementations/cfamo/kernel_cfamo.cuh"
 #include "constants.cuh"
+#include <algorithm>
 
 // ----------------------------------------------------------------------------
 // I/O parameters used to index argv[]
@@ -508,6 +509,7 @@ int main(int argc, char **argv)
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sh,st,sz,sh_next,st_next);
     cudaDeviceSynchronize();
 
+    
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
 
