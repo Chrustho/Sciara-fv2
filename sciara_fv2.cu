@@ -11,6 +11,7 @@
 #include "implementations/cfame/kernel_cfame.cuh"
 #include "implementations/cfamo/kernel_cfamo.cuh"
 #include "constants.cuh"
+#include <algorithm>
 
 // ----------------------------------------------------------------------------
 // I/O parameters used to index argv[]
@@ -36,7 +37,6 @@
 // ----------------------------------------------------------------------------
 
 extern void initializeConstants(Sciara* sciara);
-
 
 void emitLava(
     int i,
@@ -359,6 +359,38 @@ double reduceAddGPU(int rows, int cols, double *d_input, double *d_temp_buffer) 
     return result;
 }
 
+void emitLava_global_inplace(
+    Sciara *__restrict__ sciara, 
+    double *__restrict__ sh, 
+    double *__restrict__ st) 
+{
+    int rows = sciara->domain->rows;
+    int cols = sciara->domain->cols;
+    double pTvent = sciara->parameters->PTvent;
+    double elapsed_time = sciara->simulation->elapsed_time;
+    double pclock = sciara->parameters->Pclock;
+    unsigned int em_time = sciara->simulation->emission_time; 
+    double pac = sciara->parameters->Pac;
+    double &total_em_lava = sciara->simulation->total_emitted_lava;
+
+    int size = sciara->simulation->vent.size();
+
+    for (int k = 0; k < size; k++)
+    {
+        TVent curr_vent = sciara->simulation->vent[k];
+        int i = curr_vent.y();
+        int j = curr_vent.x();
+
+        double thickness_add = curr_vent.thickness(elapsed_time, pclock, em_time, pac);
+        
+        sh[i * cols + j] += thickness_add;
+        st[i * cols + j] = pTvent;
+
+        total_em_lava += thickness_add;
+    }
+    
+    cudaDeviceSynchronize();
+}
 
 
 int main(int argc, char **argv)
@@ -375,9 +407,6 @@ int main(int argc, char **argv)
   int cols = sciara->domain->cols;
 
   dim3 block(BLOCK_DIM, BLOCK_DIM);
- // dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
-
-  //printf("Inizializzati i blocchi: Grid(%d, %d)\n", grid.x, grid.y);
 
   double total_current_lava = -1;
   simulationInitialize(sciara);
@@ -421,7 +450,7 @@ int main(int argc, char **argv)
   size_t sharedMemSize_CfAMo = sharedSize_cfamo * 5 * sizeof(double);
   dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
-  int sharedWidth_cfame = block.x + 2;  // HALO = 1
+  int sharedWidth_cfame = block.x + 2;  
   int sharedHeight_cfame = block.y + 2;
   int sharedSize_cfame = sharedWidth_cfame * sharedHeight_cfame;
   size_t sharedMemSize_CfAMe = sharedSize_cfame * NUMBER_OF_OUTFLOWS * sizeof(double);
@@ -442,8 +471,6 @@ int main(int argc, char **argv)
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
       (total_current_lava == -1 || total_current_lava > thickness_threshold))
   {
-    //sciara->simulation->elapsed_time += sciara->parameters->Pclock;
-    //sciara->simulation->step++;
     *et+=pclok;
     (*step)++; 
 
@@ -452,38 +479,40 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-/*
+    // Per gli altri
+
+
+ // emitLava_global_inplace(sciara,sh,st); // per cfame e cfamo
+
+
     computeOutflows_Global<<<grid,block>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
-
-
+    cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Global<<<grid, block>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
-*/
 
-    /*
 
-    computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sciara);
+    
+/*
+    computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-    massBalance_Tiled_wH<<<grid, block,sharedMem_halo_massBalance>>>(sciara);
+    massBalance_Tiled_wH<<<grid, block,sharedMem_halo_massBalance>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
 
 
 
-
+/*
     CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sh,st,sz,sh_next,st_next);
     cudaDeviceSynchronize();
-    */
-
-
-  
 
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sh,st,sz,sh_next,st_next);
     cudaDeviceSynchronize();
-
+*/
+    
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
+    
 
     computeNewTemperatureAndSolidification_Global<<<grid, block>>>(sh, sh_next, st, st_next, sz, sz_next, mhs, mb);
     cudaDeviceSynchronize();
@@ -491,10 +520,12 @@ int main(int argc, char **argv)
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, sizeBuffer, cudaMemcpyDeviceToDevice);
 
+
+
     if (sciara->simulation->step % reduceInterval == 0)
     {
       total_current_lava = reduceAddGPU(rows, cols, sciara->substates->Sh, d_reduce_temp);     
-      //printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
+      printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
     }
   }
 

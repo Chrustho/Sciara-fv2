@@ -3,7 +3,7 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "kernel_cfame.cuh"
-#include "../../constants.cuh"  // Include solo le dichiarazioni extern
+#include "../../constants.cuh"  
 
 
 #define HALO 1

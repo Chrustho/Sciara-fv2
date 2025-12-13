@@ -3,4 +3,8 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 
-__global__ void CfAMo_Kernel(double *sh, double *st, double *sz, double *sh_next, double *st_next);
+__global__ void CfAMo_Kernel(    const double * __restrict__ sh, 
+    const double * __restrict__ st, 
+    const double * __restrict__ sz, 
+    double * __restrict__ sh_next, 
+    double * __restrict__ st_next);

@@ -1,15 +1,18 @@
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled_with_halos/kernel_tiled_with_halo.cuh"
-#include "../../constants.cuh"  // Include solo le dichiarazioni extern
+#include "../../constants.cuh"  
 
 #ifndef HALO
 #define HALO 1
 #endif
-
-
-__global__ void CfAMo_Kernel(double *sh, double *st, double *sz, double *sh_next, double *st_next) {
-
+__global__ void CfAMo_Kernel(
+    const double * __restrict__ sh, 
+    const double * __restrict__ st, 
+    const double * __restrict__ sz, 
+    double * __restrict__ sh_next, 
+    double * __restrict__ st_next) 
+{
     int sharedWidth = blockDim.x; 
     int sharedHeight = blockDim.y;
     int sharedSize = sharedWidth * sharedHeight;
@@ -49,7 +52,7 @@ __global__ void CfAMo_Kernel(double *sh, double *st, double *sz, double *sh_next
     
     double calculated_flows[8];
     #pragma unroll
-    for(int k=0; k<8; k++) calculated_flows[k] = 0.0;
+    for(int k = 0; k < 8; k++) calculated_flows[k] = 0.0;
 
     double h0 = 0.0;
     double t0 = 0.0;
@@ -71,9 +74,10 @@ __global__ void CfAMo_Kernel(double *sh, double *st, double *sz, double *sh_next
             double hc = pow(10.0, d_c + d_d * t0);
             double rad = sqrt(2.0);
 
-            double w =d_pc;
-            double pr= rr;
+            double w = d_pc;
+            double pr = rr;
 
+            #pragma unroll
             for (int k = 0; k < MOORE_NEIGHBORS; k++) {
                 int ntc = tc + d_Xj[k];
                 int ntr = tr + d_Xi[k];
@@ -99,10 +103,11 @@ __global__ void CfAMo_Kernel(double *sh, double *st, double *sz, double *sh_next
                 h[k] = h_k;
                 if (k < VON_NEUMANN_NEIGHBORS) z[k] = sz_k;
                 else z[k] = sz0 - (sz0 - sz_k) / rad;
-
             }
 
             H[0] = z[0]; theta[0] = 0.0; eliminated[0] = false;
+            
+            #pragma unroll
             for (int k = 1; k < MOORE_NEIGHBORS; k++) {
                 if (z[0] + h[0] > z[k] + h[k]) {
                     H[k] = z[k] + h[k];
@@ -131,10 +136,10 @@ __global__ void CfAMo_Kernel(double *sh, double *st, double *sz, double *sh_next
                 }
             } while (loop);
             
-            
+            #pragma unroll
             for (int k = 1; k < MOORE_NEIGHBORS; k++) {
                 if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
-                    calculated_flows[k-1] = pr* (avg - H[k]);
+                    calculated_flows[k-1] = pr * (avg - H[k]);
                 }
             }
         }
@@ -177,7 +182,7 @@ __global__ void CfAMo_Kernel(double *sh, double *st, double *sz, double *sh_next
         double h_new = h0 + inflow_mass - total_outflow;
         double t_new = t0;
 
-        if (h_new > 0) {
+        if (h_new > 0.0) {
             double e_residual = (h0 - total_outflow) * t0;
             t_new = (e_residual + inflow_energy) / h_new;
             sh_next[idx] = h_new;

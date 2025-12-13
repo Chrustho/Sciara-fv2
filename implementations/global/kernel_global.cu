@@ -195,7 +195,7 @@ __global__ void computeNewTemperatureAndSolidification_Global(
     if (h > 0.0 && !mb[idx]) {
         double T3 = T * T * T;
         double aus = 1.0 + (d_temp_factor * T3) / (d_temp_divisor * h);
-        double nT = T / pow(aus, 1.0 / 3.0);  // Formula originale
+        double nT = T / pow(aus, 1.0 / 3.0);  
         if (nT > d_ptsol) {
             T_out = nT;
         } else {
