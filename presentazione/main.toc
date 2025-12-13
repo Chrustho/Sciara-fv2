@@ -1,0 +1,8 @@
+\babel@toc {english}{}\relax 
+\beamer@sectionintoc {1}{Implementations Overview}{3}{0}{1}
+\beamer@sectionintoc {2}{Naive Implementation 1}{5}{0}{2}
+\beamer@sectionintoc {3}{Tiled without Halo}{8}{0}{3}
+\beamer@sectionintoc {4}{Tiled with Halo}{10}{0}{4}
+\beamer@sectionintoc {5}{Cfame Implementation}{12}{0}{5}
+\beamer@sectionintoc {6}{Cfamo Implementation}{14}{0}{6}
+\beamer@sectionintoc {7}{Differences between sequential}{16}{0}{7}
