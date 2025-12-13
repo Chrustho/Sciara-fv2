@@ -466,6 +466,7 @@ int main(int argc, char **argv)
   double thickness_threshold = atof(argv[THICKNESS_THRESHOLD_ID]);
 
 
+  int i = 0;
 
   while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
       (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
@@ -473,24 +474,26 @@ int main(int argc, char **argv)
   {
     *et+=pclok;
     (*step)++; 
-
-
+    if( i > 100) break;
+    i++;
+/*
     emitLava_global(sciara, sh, sh_next, st_next);
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
     // Per gli altri
 
+*/
+  emitLava_global_inplace(sciara,sh,st); // per cfame e cfamo
 
- // emitLava_global_inplace(sciara,sh,st); // per cfame e cfamo
 
-
+    /*
     computeOutflows_Global<<<grid,block>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Global<<<grid, block>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
-
+*/
 
     
 /*
@@ -502,13 +505,17 @@ int main(int argc, char **argv)
 
 
 
-/*
+*/
+  
     CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sh,st,sz,sh_next,st_next);
     cudaDeviceSynchronize();
+    
 
+    /*
     CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sh,st,sz,sh_next,st_next);
     cudaDeviceSynchronize();
-*/
+    */
+
     
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
