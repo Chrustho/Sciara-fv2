@@ -406,7 +406,8 @@ int main(int argc, char **argv)
   int rows = sciara->domain->rows;
   int cols = sciara->domain->cols;
 
-  dim3 block(BLOCK_DIM, BLOCK_DIM);
+  //dim3 block(BLOCK_DIM, BLOCK_DIM);
+  dim3 block(32, 8);
 
   double total_current_lava = -1;
   simulationInitialize(sciara);
@@ -455,6 +456,9 @@ int main(int argc, char **argv)
   int sharedSize_cfame = sharedWidth_cfame * sharedHeight_cfame;
   size_t sharedMemSize_CfAMe = sharedSize_cfame * NUMBER_OF_OUTFLOWS * sizeof(double);
 
+  int sharedSize_tiled = block.x * block.y;
+  size_t sharedMem_tiled_outflows = sharedSize_tiled * 3 * sizeof(double);
+  size_t sharedMem_tiled_massBalance = sharedSize_tiled * (2 + NUMBER_OF_OUTFLOWS) * sizeof(double);
 
   double *et= &sciara->simulation->elapsed_time;
   double pclok= sciara->parameters->Pclock;
@@ -467,48 +471,62 @@ int main(int argc, char **argv)
 
 
 
-  while ((max_steps > 0 && sciara->simulation->step < max_steps) || 
-      (sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
-      (total_current_lava == -1 || total_current_lava > thickness_threshold))
+  while (sciara->simulation->step < max_steps)
   {
     *et+=pclok;
     (*step)++; 
 
 
     emitLava_global(sciara, sh, sh_next, st_next);
-    cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-    cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
+    //cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
+    //cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
     // Per gli altri
 
 
- // emitLava_global_inplace(sciara,sh,st); // per cfame e cfamo
+    //emitLava_global_inplace(sciara,sh,st); // per cfame e cfamo
+    cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
+    cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-
+    
+    /*
     computeOutflows_Global<<<grid,block>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Global<<<grid, block>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
+    */
 
 
     
-/*
+
+    
     computeOutflows_Tiled_wH<<<grid,block,sharedMem_halo_outflows>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     massBalance_Tiled_wH<<<grid, block,sharedMem_halo_massBalance>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
+    cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
+    cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
+    
 
-
-
-/*
-    CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sh,st,sz,sh_next,st_next);
+    /*
+    computeOutflows_Tiled<<<grid,block,sharedMem_tiled_outflows>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
-
-    CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sh,st,sz,sh_next,st_next);
+    cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
+    massBalance_Tiled<<<grid, block,sharedMem_tiled_massBalance>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
 */
+
+    /*
+    CfAMe_Kernel<<<grid, block, sharedMemSize_CfAMe>>>(sh,st,sz,sh_next,st_next);
+    cudaDeviceSynchronize();
+    */
+
+    
+    CfAMo_Kernel<<<grid, block, sharedMemSize_CfAMo>>>(sh,st,sz,sh_next,st_next);
+    cudaDeviceSynchronize();
+    
     
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);

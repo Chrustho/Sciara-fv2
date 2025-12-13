@@ -1,0 +1,13 @@
+"Type","Time(%)","Time","Calls","Avg","Min","Max","Name"
+,%,ms,,us,us,us,
+"GPU activities",52.221988,25.030435,100,250.304000,243.744000,253.505000,"CfAMe_Kernel(double const *, double const *, double const *, double*, double*)"
+"GPU activities",35.669992,17.096925,714,23.945000,2.688000,286.209000,"[CUDA memcpy DtoD]"
+"GPU activities",12.039855,5.770803,100,57.708000,56.992000,59.200000,"computeNewTemperatureAndSolidification_Global(double*, double*, double*, double*, double*, double*, double*, bool const *)"
+"GPU activities",0.044931,0.021536,2,10.768000,4.192000,17.344000,"reduceKernel(double const *, double*, int)"
+"GPU activities",0.018493,0.008864,6,1.477000,1.344000,1.792000,"[CUDA memcpy HtoD]"
+"GPU activities",0.004740,0.002272,1,2.272000,2.272000,2.272000,"[CUDA memcpy DtoH]"
+
+"Device","Count","Avg Size","Min Size","Max Size","Total Size","Total Time",""
+"NVIDIA GeForce GTX 980 (0)",204,19.979492KB,4.000000KB,1.492188MB,3.980469MB,0.000000,"Host To Device"
+"NVIDIA GeForce GTX 980 (0)",2851,23.844727KB,4.000000KB,508.000000KB,66.390625MB,0.000000,"Device To Host"
+Total CPU Page faults: 967
