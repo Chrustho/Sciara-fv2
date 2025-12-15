@@ -480,24 +480,17 @@ int main(int argc, char **argv)
 
 
     emitLava_global(sciara, sh, sh_next, st_next);
-    //cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-    //cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-
-    // Per gli altri
-
-
-    //emitLava_global_inplace(sciara,sh,st); // per cfame e cfamo
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
     
-  
-    computeOutflows_Global<<<grid,block>>>(sh,st,sz,mf);
+
+    computeOutflows_Tiled<<<grid,block,sharedMem_tiled_outflows>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
-    massBalance_Global<<<grid, block>>>(sh, sh_next, st, st_next, mf);
+    massBalance_Tiled<<<grid, block,sharedMem_tiled_massBalance>>>(sh, sh_next, st, st_next, mf);
     cudaDeviceSynchronize();
-    
+
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     
