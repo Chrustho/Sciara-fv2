@@ -4,5 +4,4 @@ main
 *.xml
 *.asc
 sciara_cuda
-Makefile
 
