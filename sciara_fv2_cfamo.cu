@@ -470,6 +470,7 @@ int main(int argc, char **argv)
   double thickness_threshold = atof(argv[THICKNESS_THRESHOLD_ID]);
 
 
+  printf("INIZIO CON CFAMO\n");
 
   while ((max_steps > 0 && sciara->simulation->step < max_steps) &&
        ((sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
