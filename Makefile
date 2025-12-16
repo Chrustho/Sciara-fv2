@@ -17,7 +17,7 @@ NVFLAGS=-O3 -rdc=true -I.
 INPUT_CONFIG=./data/2006/2006_000000000000.cfg
 OUTPUT_CONFIG=./data/2006/output_2006
 OUTPUT=./data/2006/output_2006_000000016000_Temperature.asc
-STEPS=16000
+STEPS=1000
 REDUCE_INTERVL=1000
 THICKNESS_THRESHOLD=1.0
 
@@ -121,6 +121,9 @@ clean:
 
 wipe:
 	rm -f *.o *out*
+
+wipe_data:
+	rm -f ./data/2006/*output*
 
 clean-profile:
 	rm -rf profiling_results/

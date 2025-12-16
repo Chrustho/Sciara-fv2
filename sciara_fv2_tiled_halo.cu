@@ -406,8 +406,8 @@ int main(int argc, char **argv)
   int rows = sciara->domain->rows;
   int cols = sciara->domain->cols;
 
-  //dim3 block(BLOCK_DIM, BLOCK_DIM);
-  dim3 block(32, 8);
+  dim3 block(BLOCK_DIM, BLOCK_DIM);
+  //dim3 block(32, 8);
 
   double total_current_lava = -1;
   simulationInitialize(sciara);
@@ -471,7 +471,7 @@ int main(int argc, char **argv)
 
 
 
-  while ((max_steps > 0 && sciara->simulation->step < max_steps) &&
+  while ((max_steps > 0 && sciara->simulation->step < max_steps) ||
        ((sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
         (total_current_lava == -1 || total_current_lava > thickness_threshold)))
   {

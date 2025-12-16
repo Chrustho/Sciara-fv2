@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../../src/vent.h"
 #include "../../src/Sciara.h"
 #include "../../implementations/tiled_with_halos/kernel_tiled_with_halo.cuh"
@@ -30,13 +32,13 @@ __global__ void computeOutflows_Tiled_wH(
     int ts_r = tr + HALO;  
     int tid_s = ts_r * sharedWidth + ts_c;
 
+    // Caricamento tile centrale
     if (i < rows && j < cols) {
         sh_s[tid_s] = sh[idx];
         st_s[tid_s] = st[idx];
         sz_s[tid_s] = sz[idx];
     }
 
-    
     // Halo sinistro
     if (tc == 0) {
         int gi = i;
@@ -92,8 +94,6 @@ __global__ void computeOutflows_Tiled_wH(
             sz_s[sid] = sz[gidx];
         }
     }
-
-    // Halo angoli 
 
     // Angolo top-left
     if (tc == 0 && tr == 0) {
@@ -153,7 +153,6 @@ __global__ void computeOutflows_Tiled_wH(
 
     __syncthreads();
 
-
     if (i >= rows || j >= cols) return;
 
     double h0 = sh_s[tid_s];
@@ -171,12 +170,20 @@ __global__ void computeOutflows_Tiled_wH(
     double rr = pow(10.0, d_a + d_b * T_val);
     double hc = pow(10.0, d_c + d_d * T_val);
 
-    double rad= sqrt(2.0);
-    double w= d_pc;
-    double pr= rr;
+    double rad = sqrt(2.0);
+    double w = d_pc;
+    double pr = rr;
 
-    for (int k = 0; k < MOORE_NEIGHBORS; k++)
-    {
+    // Inizializza tutto come eliminato
+    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+        eliminated[k] = true;
+        h[k] = 0.0;
+        z[k] = 0.0;
+        H[k] = 0.0;
+        theta[k] = 0.0;
+    }
+
+    for (int k = 0; k < MOORE_NEIGHBORS; k++) {
         int ni = i + d_Xi[k];
         int nj = j + d_Xj[k];
 
@@ -194,25 +201,26 @@ __global__ void computeOutflows_Tiled_wH(
                 z[k] = sz_k;
             else
                 z[k] = sz0 - (sz0 - sz_k) / rad;
+            
+            eliminated[k] = false;  // Valido, non eliminato inizialmente
         }
+        // Se non valido, rimane eliminated[k] = true
     }
 
+    // Cella centrale sempre valida
     H[0] = z[0];
     theta[0] = 0.0;
     eliminated[0] = false;
 
-    for (int k = 1; k < MOORE_NEIGHBORS; k++)
-    {
-
-        eliminated[k] = true;
-        H[k] = 0.0;
-        theta[k] = 0.0;
-
-        if (z[0] + h[0] > z[k] + h[k])
-        {
-            H[k] = z[k] + h[k];
-            theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) /w);
-            eliminated[k] = false;
+    // Calcola H e theta per i vicini validi
+    for (int k = 1; k < MOORE_NEIGHBORS; k++) {
+        if (!eliminated[k]) {
+            if (z[0] + h[0] > z[k] + h[k]) {
+                H[k] = z[k] + h[k];
+                theta[k] = atan(((z[0] + h[0]) - (z[k] + h[k])) / w);
+            } else {
+                eliminated[k] = true;
+            }
         }
     }
 
@@ -220,16 +228,13 @@ __global__ void computeOutflows_Tiled_wH(
     double avg;
     int counter;
 
-    do
-    {
+    do {
         loop = false;
         avg = h[0];
         counter = 0;
 
-        for (int k = 0; k < MOORE_NEIGHBORS; k++)
-        {
-            if (!eliminated[k])
-            {
+        for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+            if (!eliminated[k]) {
                 avg += H[k];
                 counter++;
             }
@@ -238,25 +243,21 @@ __global__ void computeOutflows_Tiled_wH(
         if (counter != 0)
             avg = avg / (double)counter;
 
-        for (int k = 0; k < MOORE_NEIGHBORS; k++)
-        {
-            if (!eliminated[k] && avg <= H[k])
-            {
+        for (int k = 0; k < MOORE_NEIGHBORS; k++) {
+            if (!eliminated[k] && avg <= H[k]) {
                 eliminated[k] = true;
                 loop = true;
             }
         }
     } while (loop);
 
-    for (int k = 1; k < MOORE_NEIGHBORS; k++)
-    {
+    for (int k = 1; k < MOORE_NEIGHBORS; k++) {
         int outflow_idx = k - 1;
         int mf_idx = (outflow_idx * rows * cols) + idx;
 
         mf[mf_idx] = 0.0;
 
-        if (!eliminated[k] && h[0] > hc * cos(theta[k]))
-        {
+        if (!eliminated[k] && h[0] > hc * cos(theta[k])) {
             mf[mf_idx] = pr * (avg - H[k]);
         }
     }
@@ -265,7 +266,6 @@ __global__ void computeOutflows_Tiled_wH(
 
 __global__ void massBalance_Tiled_wH(
     double *sh, double *sh_next, double *st, double *st_next, double *mf) {
-
 
     int sharedWidth = blockDim.x + 2 * HALO;   
     int sharedHeight = blockDim.y + 2 * HALO;  
@@ -289,7 +289,7 @@ __global__ void massBalance_Tiled_wH(
 
     int layer_size = rows * cols;
 
-    //  CARICAMENTO TILE CENTRALE 
+    // Caricamento tile centrale
     if (i < rows && j < cols) {
         int gidx = i * cols + j;
         sh_s[tid_s] = sh[gidx];
@@ -299,7 +299,7 @@ __global__ void massBalance_Tiled_wH(
         }
     }
 
-    //  CARICAMENTO HALO SINISTRO 
+    // Halo sinistro
     if (tc == 0) {
         int gi = i;
         int gj = j - HALO;
@@ -315,7 +315,7 @@ __global__ void massBalance_Tiled_wH(
         }
     }
 
-    //  CARICAMENTO HALO DESTRO 
+    // Halo destro
     if (tc == blockDim.x - 1) {
         int gi = i;
         int gj = j + HALO;
@@ -331,7 +331,7 @@ __global__ void massBalance_Tiled_wH(
         }
     }
 
-    //  CARICAMENTO HALO SUPERIORE 
+    // Halo superiore
     if (tr == 0) {
         int gi = i - HALO;
         int gj = j;
@@ -344,10 +344,10 @@ __global__ void massBalance_Tiled_wH(
             for (int layer = 0; layer < NUMBER_OF_OUTFLOWS; layer++) {
                 mf_s[layer * sharedSize + sid] = mf[layer * layer_size + gidx];
             }
-        } 
+        }
     }
 
-    //  CARICAMENTO HALO INFERIORE 
+    // Halo inferiore
     if (tr == blockDim.y - 1) {
         int gi = i + HALO;
         int gj = j;
@@ -363,7 +363,7 @@ __global__ void massBalance_Tiled_wH(
         }
     }
 
-    //  CARICAMENTO ANGOLO TOP-LEFT 
+    // Angolo top-left
     if (tc == 0 && tr == 0) {
         int gi = i - HALO;
         int gj = j - HALO;
@@ -379,7 +379,7 @@ __global__ void massBalance_Tiled_wH(
         }
     }
 
-    //  CARICAMENTO ANGOLO TOP-RIGHT 
+    // Angolo top-right
     if (tc == blockDim.x - 1 && tr == 0) {
         int gi = i - HALO;
         int gj = j + HALO;
@@ -395,7 +395,7 @@ __global__ void massBalance_Tiled_wH(
         }
     }
 
-    //  CARICAMENTO ANGOLO BOTTOM-LEFT 
+    // Angolo bottom-left
     if (tc == 0 && tr == blockDim.y - 1) {
         int gi = i + HALO;
         int gj = j - HALO;
@@ -411,7 +411,7 @@ __global__ void massBalance_Tiled_wH(
         }
     }
 
-    //  CARICAMENTO ANGOLO BOTTOM-RIGHT 
+    // Angolo bottom-right
     if (tc == blockDim.x - 1 && tr == blockDim.y - 1) {
         int gi = i + HALO;
         int gj = j + HALO;
@@ -429,8 +429,6 @@ __global__ void massBalance_Tiled_wH(
 
     __syncthreads();
 
-    //  COMPUTAZIONE 
-
     if (i >= rows || j >= cols) return;
 
     const int inflowsIndices[NUMBER_OF_OUTFLOWS] = {3, 2, 1, 0, 6, 7, 4, 5};
@@ -441,10 +439,12 @@ __global__ void massBalance_Tiled_wH(
     double h_next = initial_h;
     double t_next = initial_h * initial_t;
 
-    for (int n = 1; n < MOORE_NEIGHBORS; n++)
-    {
+    for (int n = 1; n < MOORE_NEIGHBORS; n++) {
         int ni = i + d_Xi[n];
         int nj = j + d_Xj[n];
+
+        // Bounds check - salta vicini fuori dal dominio
+        if (ni < 0 || ni >= rows || nj < 0 || nj >= cols) continue;
 
         int ts_r_n = ts_r + d_Xi[n];
         int ts_c_n = ts_c + d_Xj[n];
