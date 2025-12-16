@@ -471,7 +471,7 @@ dim3 block(BLOCK_DIM, BLOCK_DIM);
 
 
 
-  while ((max_steps > 0 && sciara->simulation->step < max_steps) ||
+while ((max_steps > 0 && sciara->simulation->step < max_steps) &&
        ((sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
         (total_current_lava == -1 || total_current_lava > thickness_threshold)))
   {
@@ -506,7 +506,7 @@ dim3 block(BLOCK_DIM, BLOCK_DIM);
     if (sciara->simulation->step % reduceInterval == 0)
     {
       total_current_lava = reduceAddGPU(rows, cols, sciara->substates->Sh, d_reduce_temp);     
-      printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
+      //printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
     }
   }
 

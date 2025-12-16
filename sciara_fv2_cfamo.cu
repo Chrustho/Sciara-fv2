@@ -465,14 +465,16 @@ int main(int argc, char **argv)
   int *step= &sciara->simulation->step;
   
 
+    printf("INIZIO CON CFAMO\n");
+
   util::Timer cl_timer;
   int reduceInterval = atoi(argv[REDUCE_INTERVL_ID]);
   double thickness_threshold = atof(argv[THICKNESS_THRESHOLD_ID]);
 
 
-  printf("INIZIO CON CFAMO\n");
 
-  while ((max_steps > 0 && sciara->simulation->step < max_steps) ||
+
+while ((max_steps > 0 && sciara->simulation->step < max_steps) &&
        ((sciara->simulation->elapsed_time <= sciara->simulation->effusion_duration) || 
         (total_current_lava == -1 || total_current_lava > thickness_threshold)))
   {
@@ -500,7 +502,7 @@ int main(int argc, char **argv)
     if (sciara->simulation->step % reduceInterval == 0)
     {
       total_current_lava = reduceAddGPU(rows, cols, sciara->substates->Sh, d_reduce_temp);     
-      printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
+     // printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
     }
   }
 

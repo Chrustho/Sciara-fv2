@@ -134,8 +134,8 @@ def match_kernel_name(name):
     if not name: return None
     if 'computeOutflows' in name: return 'computeOutflows'
     if 'massBalance' in name: return 'massBalance'
-    if 'CfA_Me' in name: return 'CfA_Me'
-    if 'CfA_Mo' in name: return 'CfA_Mo'
+    if 'CfAMe' in name: return 'CfAMe'
+    if 'CfAMo' in name: return 'CfAMo'
     return None
 
 def parse_one_dataset(base):
@@ -306,7 +306,7 @@ def main():
 
         # Occupancy: media di tutti i kernel principali
         occ_vals = []
-        for k_name in ('massBalance', 'computeOutflows', 'CfA_Me', 'CfA_Mo'):
+        for k_name in ('massBalance', 'computeOutflows', 'CfAMe', 'CfAMo'):
             if k_name in kernels and kernels[k_name]['occupancies']:
                 occ_vals.append(statistics.mean(kernels[k_name]['occupancies']))
         occ_map[version] = statistics.mean(occ_vals) if occ_vals else 0.0
@@ -328,7 +328,7 @@ def main():
             )
         else:
             # Prova con singolo kernel CfA
-            for k_name in ['CfA_Me', 'CfA_Mo']:
+            for k_name in ['CfAMe', 'CfAMo']:
                 k = kernels.get(k_name)
                 if k and k['total_flops'] > 0:
                     roofline_point = calc_roofline_point(
