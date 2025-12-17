@@ -1,4 +1,0 @@
-Time (%),Total Time (ns),Instances,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
-87.7,50854518,101,503510.1,487188.0,442110,1486423,107959.2,"CfAMe_Kernel(const double *, const double *, const double *, double *, double *)"
-12.2,7086594,101,70164.3,58963.0,58611,989350,94033.7,"computeNewTemperatureAndSolidification_Global(double *, double *, double *, double *, double *, double *, double *, const bool *)"
-0.0,21916,2,10958.0,10958.0,3232,18684,10926.2,"reduceKernel(const double *, double *, int)"

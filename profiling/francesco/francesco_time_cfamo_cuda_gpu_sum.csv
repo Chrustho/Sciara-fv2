@@ -1,9 +1,0 @@
-Time (%),Total Time (ns),Instances,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Category,Operation
-63.5,36513768,101,361522.5,343869.0,186655,1890577,203695.5,CUDA_KERNEL,"CfAMo_Kernel(const double *, const double *, const double *, double *, double *)"
-21.9,12605610,519,24288.3,24255.0,512,376285,22644.5,MEMORY_OPER,[CUDA memcpy Device-to-Device]
-11.6,6661107,101,65951.6,59328.0,58623,679483,61708.0,CUDA_KERNEL,"computeNewTemperatureAndSolidification_Global(double *, double *, double *, double *, double *, double *, double *, const bool *)"
-1.6,911032,237,3844.0,1728.0,1471,81888,10102.6,MEMORY_OPER,[CUDA memcpy Unified Device-to-Host]
-1.3,757135,192,3943.4,2016.0,1791,90271,9303.9,MEMORY_OPER,[CUDA memcpy Unified Host-to-Device]
-0.0,22752,2,11376.0,11376.0,3168,19584,11607.9,CUDA_KERNEL,"reduceKernel(const double *, double *, int)"
-0.0,3200,6,533.3,544.0,512,544,16.5,MEMORY_OPER,[CUDA memcpy Host-to-Device]
-0.0,1728,1,1728.0,1728.0,1728,1728,0.0,MEMORY_OPER,[CUDA memcpy Device-to-Host]
