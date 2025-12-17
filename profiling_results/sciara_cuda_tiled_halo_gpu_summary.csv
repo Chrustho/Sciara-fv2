@@ -1,0 +1,20 @@
+==80448== NVPROF is profiling process 80448, command: ./sciara_cuda_tiled_halo ./data/2006/2006_000000000000.cfg ./data/2006/output_2006 16000 1000 1.0
+==80448== Profiling application: ./sciara_cuda_tiled_halo ./data/2006/2006_000000000000.cfg ./data/2006/output_2006 16000 1000 1.0
+==80448== Warning: Found 1 invalid records in the result.
+==80448== Warning: This can happen if device ran out of memory or if a device kernel was stopped due to an assertion.
+==80448== Profiling result:
+"Type","Time(%)","Time","Calls","Avg","Min","Max","Name"
+,%,s,,us,us,us,
+"GPU activities",38.718469,4.086199,16000,255.387000,239.393000,338.146000,"massBalance_Tiled_wH(double*, double*, double*, double*, double*)"
+"GPU activities",28.758888,3.035103,128014,23.709000,2.688000,51.872000,"[CUDA memcpy DtoD]"
+"GPU activities",23.424269,2.472108,16000,154.506000,80.928000,296.034000,"computeOutflows_Tiled_wH(double*, double*, double*, double*)"
+"GPU activities",9.094793,0.959830,16000,59.989000,57.344000,84.033000,"computeNewTemperatureAndSolidification_Global(double*, double*, double*, double*, double*, double*, double*, bool const *)"
+"GPU activities",0.003194,0.000337,32,10.533000,3.840000,18.112000,"reduceKernel(double const *, double*, int)"
+"GPU activities",0.000308,0.000032,16,2.030000,1.888000,2.432000,"[CUDA memcpy DtoH]"
+"GPU activities",0.000079,0.000008,6,1.397000,1.312000,1.792000,"[CUDA memcpy HtoD]"
+
+==80448== Unified Memory profiling result:
+"Device","Count","Avg Size","Min Size","Max Size","Total Size","Total Time",""
+"NVIDIA GeForce GTX 980 (0)",32004,4.101562KB,4.000000KB,1.492188MB,128.199219MB,0.000000,"Host To Device"
+"NVIDIA GeForce GTX 980 (0)",528197,21.346680KB,4.000000KB,508.000000KB,10.753002GB,0.000005,"Device To Host"
+Total CPU Page faults: 176083

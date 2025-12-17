@@ -1,0 +1,9 @@
+==80604== NVPROF is profiling process 80604, command: ./sciara_cuda_tiled_halo ./data/2006/2006_000000000000.cfg ./data/2006/output_2006 10 10 1.0
+==80604== Profiling application: ./sciara_cuda_tiled_halo ./data/2006/2006_000000000000.cfg ./data/2006/output_2006 10 10 1.0
+==80604== Profiling result:
+==80604== Metric result:
+"Device","Kernel","Invocations","Metric Name","Metric Description","Min","Max","Avg"
+"NVIDIA GeForce GTX 980 (0)","computeOutflows_Tiled_wH(double*, double*, double*, double*)",10,"achieved_occupancy","Achieved Occupancy",0.237974,0.239657,0.238905
+"NVIDIA GeForce GTX 980 (0)","computeNewTemperatureAndSolidification_Global(double*, double*, double*, double*, double*, double*, double*, bool const *)",10,"achieved_occupancy","Achieved Occupancy",0.506621,0.516492,0.512517
+"NVIDIA GeForce GTX 980 (0)","reduceKernel(double const *, double*, int)",2,"achieved_occupancy","Achieved Occupancy",0.096474,0.818363,0.457418
+"NVIDIA GeForce GTX 980 (0)","massBalance_Tiled_wH(double*, double*, double*, double*, double*)",10,"achieved_occupancy","Achieved Occupancy",0.361182,0.362187,0.361735

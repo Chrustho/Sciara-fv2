@@ -483,8 +483,6 @@ while ((max_steps > 0 && sciara->simulation->step < max_steps) &&
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
 
-    
-
     computeOutflows_Tiled<<<grid,block,sharedMem_tiled_outflows>>>(sh,st,sz,mf);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
@@ -494,19 +492,15 @@ while ((max_steps > 0 && sciara->simulation->step < max_steps) &&
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next, sizeBuffer, cudaMemcpyDeviceToDevice);
     
-
     computeNewTemperatureAndSolidification_Global<<<grid, block>>>(sh, sh_next, st, st_next, sz, sz_next, mhs, mb);
     cudaDeviceSynchronize();
     cudaMemcpy(sciara->substates->Sh, sciara->substates->Sh_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->ST, sciara->substates->ST_next,sizeBuffer,cudaMemcpyDeviceToDevice);
     cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, sizeBuffer, cudaMemcpyDeviceToDevice);
 
-
-
     if (sciara->simulation->step % reduceInterval == 0)
     {
       total_current_lava = reduceAddGPU(rows, cols, sciara->substates->Sh, d_reduce_temp);     
-      //printf("Step %d: Total Lava %lf\n", sciara->simulation->step, total_current_lava);
     }
   }
 

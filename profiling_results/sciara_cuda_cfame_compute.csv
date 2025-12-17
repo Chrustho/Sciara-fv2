@@ -1,0 +1,12 @@
+==80011== NVPROF is profiling process 80011, command: ./sciara_cuda_cfame ./data/2006/2006_000000000000.cfg ./data/2006/output_2006 10 10 1.0
+==80011== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==80011== Profiling application: ./sciara_cuda_cfame ./data/2006/2006_000000000000.cfg ./data/2006/output_2006 10 10 1.0
+==80011== Profiling result:
+==80011== Metric result:
+"Device","Kernel","Invocations","Metric Name","Metric Description","Min","Max","Avg"
+"NVIDIA GeForce GTX 980 (0)","CfAMe_Kernel(double const *, double const *, double const *, double*, double*)",10,"flop_count_dp","Floating Point Operations(Double Precision)",9544567,9561796,9553386
+"NVIDIA GeForce GTX 980 (0)","CfAMe_Kernel(double const *, double const *, double const *, double*, double*)",10,"flop_count_sp","Floating Point Operations(Single Precision)",58,1070,574
+"NVIDIA GeForce GTX 980 (0)","computeNewTemperatureAndSolidification_Global(double*, double*, double*, double*, double*, double*, double*, bool const *)",10,"flop_count_dp","Floating Point Operations(Double Precision)",745,6556,3650
+"NVIDIA GeForce GTX 980 (0)","computeNewTemperatureAndSolidification_Global(double*, double*, double*, double*, double*, double*, double*, bool const *)",10,"flop_count_sp","Floating Point Operations(Single Precision)",20,176,98
+"NVIDIA GeForce GTX 980 (0)","reduceKernel(double const *, double*, int)",2,"flop_count_dp","Floating Point Operations(Double Precision)",510,244322,122416
+"NVIDIA GeForce GTX 980 (0)","reduceKernel(double const *, double*, int)",2,"flop_count_sp","Floating Point Operations(Single Precision)",0,0,0
