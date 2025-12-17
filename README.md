@@ -1,28 +1,10 @@
-# Sciara-fv2: Multi-GPU Parallelization of Lava Flow Simulation
+# Sciara-fv2: GPU Parallelization of Lava Flow Simulation
 
 A CUDA-based parallelization and performance assessment of the Sciara-fv2 2D Cellular Automata lava flow simulation model.
 
 **Course:** Massively Parallel Programming on GPUs  
 **Institution:** Department of Mathematics and Computer Science, University of Calabria, Italy  
 **Instructor:** Prof. Donato D'Ambrosio
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [The Sciara-fv2 Model](#the-sciara-fv2-model)
-- [CUDA Implementations](#cuda-implementations)
-- [Project Structure](#project-structure)
-- [Requirements](#requirements)
-- [Building](#building)
-- [Running the Simulation](#running-the-simulation)
-- [Profiling and Performance Analysis](#profiling-and-performance-analysis)
-- [Roofline Analysis](#roofline-analysis)
-- [Dataset](#dataset)
-- [Output Files](#output-files)
-- [Correctness Verification](#correctness-verification)
-- [References](#references)
 
 ---
 
@@ -77,7 +59,7 @@ Shared memory-based tiled parallelization without halo cells. Loads tile data in
 Enhanced tiled implementation where boundary threads perform additional work to copy halo cells from adjacent tiles into shared memory, enabling correct stencil computation at tile boundaries.
 
 ### 4. CfAMe (`sciara_cuda_cfame`)
-Memory-Equivalent Conflict-Free tiled algorithm. This approach localizes outflows (`f⁴`) to shared memory and merges the outflow computation with mass balance kernels, avoiding global synchronization overhead. Requires model reformulation.
+Memory-Equivalent Conflict-Free tiled algorithm. This approach localizes outflows (`f^8`) to shared memory and merges the outflow computation with mass balance kernels, avoiding global synchronization overhead. Requires model reformulation.
 
 ### 5. CfAMo (`sciara_cuda_cfamo`)
 Memory-Optimized Conflict-Free tiled algorithm. An optimized variant of CfAMe with further memory access improvements. Also requires model revision.
