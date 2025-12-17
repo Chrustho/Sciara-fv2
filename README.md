@@ -19,6 +19,13 @@ The main objectives are:
 3. Apply the Roofline model to characterize kernel performance
 4. Validate correctness against the reference serial/OpenMP implementation
 
+
+---
+# Animation of the simulation
+
+https://github.com/user-attachments/assets/9a91f55e-455d-4787-a14c-6a3d720be889
+
+
 ---
 
 ## The Sciara-fv2 Model
@@ -329,6 +336,10 @@ Cells at domain boundaries have their substates set to zero, preventing lava fro
 
 ---
 
+
+
+
+
 ## References
 
 1. D. D'Ambrosio et al., "Efficient Execution of Flow-Based Low-Order Stencil Algorithms on GPUs," SSRN, 2024. [Link](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5056757)
@@ -361,4 +372,7 @@ University of Calabria, Italy
 
 ## Acknowledgments
 
-- Prof. Donato D'Ambrosio for course instruction and project guidance
+- Prof. Dona
+
+
+to D'Ambrosio for course instruction and project guidance
