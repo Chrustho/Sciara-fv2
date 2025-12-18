@@ -499,6 +499,8 @@ while ((max_steps > 0 && sciara->simulation->step < max_steps) &&
     cudaMemcpy(sciara->substates->Sz, sciara->substates->Sz_next, sizeBuffer, cudaMemcpyDeviceToDevice);
 
 
+    //saveSnapshot(argv[OUTPUT_PATH_ID], sciara);
+
 
     if (sciara->simulation->step % reduceInterval == 0)
     {

@@ -503,6 +503,8 @@ while ((max_steps > 0 && sciara->simulation->step < max_steps) &&
 
 
 
+    //saveSnapshot(argv[OUTPUT_PATH_ID], sciara);
+
     if (sciara->simulation->step % reduceInterval == 0)
     {
       total_current_lava = reduceAddGPU(rows, cols, sciara->substates->Sh, d_reduce_temp);     
