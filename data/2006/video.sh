@@ -2,7 +2,9 @@
 # Nota per il professore: lo script da per scontato che all'interno della cartella corrente siano presenti i file .asc per la lava thickness, per poterli avere è necessario andare
 # nel file sciara_fv2.cu e de-commentare la funzione saveSnapshot nel ciclo while, questo
 # genererà nella cartella data/2006 tanti file asc per la lava thickness alla fine di ogni iterazione
-# successivamente avviare questo script e dovrebbe generarsi il video
+# Inoltre è necessario avere un virtual environment in python (python3 -m venv venv) con le seguenti librerie installabili con pip:
+# source venv/bin/activate && pip3 install matplotlib rasterio numpy
+# dopo è possibile avviare questo script 
 
 
 source venv/bin/activate
