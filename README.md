@@ -365,14 +365,9 @@ This project is developed for academic purposes as part of the Massively Paralle
 ## Authors
 
 Bruni Christian & Francesco Tieri 
-Department of Mathematics and Computer Science  
-University of Calabria, Italy
 
 ---
 
 ## Acknowledgments
 
-- Prof. Dona
-
-
-to D'Ambrosio for course instruction and project guidance
+- Prof. Donato D'Ambrosio for course instruction and project guidance
