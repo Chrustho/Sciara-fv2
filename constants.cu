@@ -1,7 +1,6 @@
 #include "constants.cuh"
 #include "src/Sciara.h"
 
-// Definizioni uniche delle costanti - SOLO QUI!
 __constant__ int rows;
 __constant__ int cols;
 __constant__ int d_Xi[9];
@@ -20,7 +19,7 @@ __constant__ double d_pcv;
 __constant__ double d_pac;
 __constant__ double d_ptsol;
 __constant__ double d_ptvent;
-__constant__ double d_temp_factor;  // = 3.0 * d_pepsilon * d_psigma * d_pclock * d_pcool
+__constant__ double d_temp_factor;  
 __constant__ double d_temp_divisor;
 
 static const int h_Xi[] = {0, -1,  0,  0,  1, -1,  1,  1, -1};

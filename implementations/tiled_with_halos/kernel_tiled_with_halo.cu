@@ -202,17 +202,14 @@ __global__ void computeOutflows_Tiled_wH(
             else
                 z[k] = sz0 - (sz0 - sz_k) / rad;
             
-            eliminated[k] = false;  // Valido, non eliminato inizialmente
+            eliminated[k] = false;  
         }
-        // Se non valido, rimane eliminated[k] = true
     }
 
-    // Cella centrale sempre valida
     H[0] = z[0];
     theta[0] = 0.0;
     eliminated[0] = false;
 
-    // Calcola H e theta per i vicini validi
     for (int k = 1; k < MOORE_NEIGHBORS; k++) {
         if (!eliminated[k]) {
             if (z[0] + h[0] > z[k] + h[k]) {
@@ -443,7 +440,6 @@ __global__ void massBalance_Tiled_wH(
         int ni = i + d_Xi[n];
         int nj = j + d_Xj[n];
 
-        // Bounds check - salta vicini fuori dal dominio
         if (ni < 0 || ni >= rows || nj < 0 || nj >= cols) continue;
 
         int ts_r_n = ts_r + d_Xi[n];

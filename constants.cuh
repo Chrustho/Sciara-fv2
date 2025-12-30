@@ -1,7 +1,6 @@
 #pragma once
 #include <cuda_runtime.h>
 
-// Dichiarazioni extern - tutti i kernel le includono
 extern __constant__ int rows;
 extern __constant__ int cols;
 extern __constant__ int d_Xi[9];
@@ -24,7 +23,6 @@ extern __constant__ double d_temp_factor;
 extern __constant__ double d_temp_divisor;
 
 
-// Funzione per inizializzare le costanti (definita in constants.cu)
 void initializeConstants(int rows, int cols,
                          double pc, double a, double b, double c, double d,
                          double pepsilon, double psigma, double pclock,
